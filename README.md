@@ -8,6 +8,8 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 
 > Live demo: _added once deployed_ · Video: _added once published_
 
+![Agent Pay: your phone, the two agents talking, and the business owner's phone](docs/screenshot.jpg)
+
 ## What happens in one booking
 
 1. **Find.** You tell your agent what you want ("a silk press in Lagos on Saturday, I'm Ada"). It searches businesses that accept agent bookings.
