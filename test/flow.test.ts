@@ -38,7 +38,7 @@ describe("agent books and pays", () => {
   it("holds, asks for approval, and books only after a completed capture", async () => {
     const s = sid();
     const reply = await buyerTurn(s, "My name is Ada Obi, book me a silk press in Lagos");
-    expect(reply).toMatch(/Approve it with PayPal/);
+    expect(reply).toMatch(/Approve with PayPal/);
     const orderId = pendingOrder(s);
     expect(store.listBookings()).toHaveLength(0);
 
@@ -66,7 +66,7 @@ describe("agent books and pays", () => {
     const s = sid();
     setBudget(s, 30);
     const reply = await buyerTurn(s, "I'm Tunde, I need knotless braids");
-    expect(reply).toMatch(/above your spending limit/);
+    expect(reply).toMatch(/over your .30 spending limit/);
     expect(session(s).pendingOrderId).toBeUndefined();
     expect(eventsFor(s).some((e) => e.kind === "guardrail")).toBe(true);
   });
@@ -131,5 +131,52 @@ describe("agent books and pays", () => {
     if ("error" in hold) throw new Error(hold.error);
     const pay = await startPayment(hold.id, s);
     expect(pay).toMatchObject({ amount: "20.00", currency: "USD" });
+  });
+});
+
+describe("customer cancels", () => {
+  beforeEach(() => {
+    store.resetStore();
+    paypal.resetMock();
+    resetBuyers();
+    resetSecretaries();
+  });
+
+  it("refunds in full inside the policy window, refuses after it", async () => {
+    const { customerCancel, cancelDeadline } = await import("../server/commerce.ts");
+    const s = sid();
+    await buyerTurn(s, "My name is Ada, a pastry box from the bakery on saturday");
+    const orderId = pendingOrder(s);
+    paypal.mockApprove(orderId);
+    const out = await captureAndConfirm(s, orderId);
+    if (!out.ok) throw new Error(out.reason);
+    expect(out.booking.serviceName).toMatch(/Pastry box/);
+
+    // Someone else's chat list cannot cancel it.
+    expect((await customerCancel(["someone-else-1"], out.booking.id)).ok).toBe(false);
+
+    // After the deadline: refused, still booked.
+    const late = await customerCancel([s], out.booking.id, cancelDeadline(out.booking)! + 1);
+    expect(late.ok).toBe(false);
+    expect(store.getBooking(out.booking.id)!.status).toBe("confirmed");
+
+    // Before it: refunded through PayPal.
+    const ok = await customerCancel([s], out.booking.id, cancelDeadline(out.booking)! - 1);
+    expect(ok.ok && ok.booking.status).toBe("refunded");
+  });
+
+  it("asks for a name, then books what was asked first", async () => {
+    const s = sid();
+    expect(await buyerTurn(s, "A silk press on Saturday please")).toMatch(/What name/);
+    const reply = await buyerTurn(s, "Ada");
+    expect(reply).toMatch(/Silk press on Saturday/);
+  });
+});
+
+describe("time zones", () => {
+  it("turns business-local time into the right instant", () => {
+    expect(new Date(store.zonedToUtc("2026-11-14", "10:00", "Africa/Lagos")).toISOString()).toBe("2026-11-14T09:00:00.000Z");
+    expect(new Date(store.zonedToUtc("2026-07-01", "10:00", "Europe/London")).toISOString()).toBe("2026-07-01T09:00:00.000Z");
+    expect(new Date(store.zonedToUtc("2026-11-14", "10:00", "Europe/London")).toISOString()).toBe("2026-11-14T10:00:00.000Z");
   });
 });

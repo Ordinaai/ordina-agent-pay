@@ -5,11 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterPayment, buyerTurn, BusyError } from "./agents/buyer.ts";
 import { aiMode, MODEL } from "./agents/loop.ts";
-import { captureAndConfirm, refundBooking, session, setBudget } from "./commerce.ts";
+import { cancelDeadline, captureAndConfirm, customerCancel, refundBooking, session, setBudget } from "./commerce.ts";
 import { eventsFor, subscribe, type WireEvent } from "./events.ts";
 import { allowTurn, validSession } from "./guard.ts";
 import { mockApprove, paypalClientId, paypalMode } from "./paypal.ts";
-import { BUSINESSES, getBooking, getBusiness, listBookings } from "./store.ts";
+import { BUSINESSES, bookingsForSessions, getBooking, getBusiness, listBookings } from "./store.ts";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -123,6 +123,49 @@ app.post("/api/pay/capture", async (req, res) => {
   } catch (err) {
     console.error("capture failed", err);
     res.status(502).json({ error: "Could not reach PayPal. Nothing was booked." });
+  }
+});
+
+// ---------- the customer's own bookings, across their chats ----------
+function sessionList(raw: unknown): string[] {
+  const list = (Array.isArray(raw) ? raw : String(raw ?? "").split(",")).map(String);
+  return list.filter(validSession).slice(0, 100);
+}
+
+function customerView(bk: ReturnType<typeof bookingsForSessions>[number]) {
+  const b = getBusiness(bk.businessId)!;
+  const { sessionId: _s, ...rest } = bk;
+  return {
+    ...rest,
+    chatId: bk.sessionId,
+    businessName: b.name,
+    city: b.city,
+    timezone: b.timezone,
+    policy: b.policy,
+    cancelUntil: cancelDeadline(bk),
+  };
+}
+
+app.get("/api/bookings", (req, res) => {
+  res.json({ bookings: bookingsForSessions(sessionList(req.query.sessions)).map(customerView) });
+});
+
+app.post("/api/bookings/cancel", async (req, res) => {
+  const { sessions, bookingId } = req.body ?? {};
+  if (typeof bookingId !== "string") {
+    res.status(400).json({ error: "Bad request" });
+    return;
+  }
+  try {
+    const out = await customerCancel(sessionList(sessions), bookingId);
+    if (!out.ok) {
+      res.status(422).json({ error: out.reason });
+      return;
+    }
+    res.json({ booking: customerView(out.booking) });
+  } catch (err) {
+    console.error("cancel failed", err);
+    res.status(502).json({ error: "Could not reach PayPal. Nothing changed." });
   }
 });
 

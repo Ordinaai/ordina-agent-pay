@@ -15,6 +15,7 @@ import {
   getService,
   holdByOrder,
   bookingByOrder,
+  zonedToUtc,
   type Booking,
 } from "./store.ts";
 
@@ -201,14 +202,14 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
     kind: "booking",
     actor: "secretary",
     title: `Booking confirmed, ref ${booking.ref}`,
-    detail: `${booking.serviceName}, ${booking.date} ${booking.time} (${b.city} time) for ${booking.customerName}`,
+    detail: `${booking.serviceName}, ${new Date(`${booking.date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })} at ${booking.time}, ${b.city} time`,
     data: { bookingId: booking.id, orderId },
   });
   return { ok: true, booking };
 }
 
 /** Owner dashboard: full refund of a booking through PayPal. */
-export async function refundBooking(bookingId: string): Promise<{ ok: true; booking: Booking } | { ok: false; reason: string }> {
+export async function refundBooking(bookingId: string, by: "owner" | "customer" = "owner"): Promise<{ ok: true; booking: Booking } | { ok: false; reason: string }> {
   const bk = getBooking(bookingId);
   if (!bk) return { ok: false, reason: "No such booking." };
   if (bk.status !== "confirmed") return { ok: true, booking: bk };
@@ -217,8 +218,8 @@ export async function refundBooking(bookingId: string): Promise<{ ok: true; book
     sessionId: bk.sessionId,
     businessId: b.id,
     kind: "paypal",
-    actor: "owner",
-    title: "Refund requested by the business",
+    actor: by === "owner" ? "owner" : "buyer",
+    title: by === "owner" ? "Refund requested by the business" : "You cancelled; refund requested",
     detail: `${bk.currency} ${bk.amount} on capture ${bk.captureId}`,
   });
   let res: paypal.RefundResult;
@@ -252,4 +253,24 @@ export async function refundBooking(bookingId: string): Promise<{ ok: true; book
     detail: res.status === "PENDING" ? "PayPal is still processing the refund." : undefined,
   });
   return { ok: true, booking: bk };
+}
+
+/** When a customer may still cancel for a full refund (null if never). */
+export function cancelDeadline(bk: Booking): number | null {
+  const b = getBusiness(bk.businessId);
+  if (!b || bk.status !== "confirmed") return null;
+  return zonedToUtc(bk.date, bk.time, b.timezone) - b.cancelHours * 3_600_000;
+}
+
+/** The customer cancels; refunded in full through PayPal if the policy allows. */
+export async function customerCancel(sessionIds: string[], bookingId: string, now = Date.now()) {
+  const bk = getBooking(bookingId);
+  if (!bk || !sessionIds.includes(bk.sessionId)) return { ok: false as const, reason: "No such booking." };
+  if (bk.status !== "confirmed") return { ok: false as const, reason: "This booking is already cancelled." };
+  const deadline = cancelDeadline(bk)!;
+  if (now > deadline) {
+    const b = getBusiness(bk.businessId)!;
+    return { ok: false as const, reason: `Too late to cancel for a refund. ${b.policy}` };
+  }
+  return refundBooking(bk.id, "customer");
 }

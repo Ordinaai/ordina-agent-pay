@@ -1,7 +1,7 @@
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-// ---------- types shared with the server ----------
+// ---------- shared shapes ----------
 type WireEvent = {
   id: number;
   at: number;
@@ -15,14 +15,12 @@ type WireEvent = {
 };
 type Config = {
   ai: "claude" | "mock";
-  model: string | null;
   paypal: "sandbox" | "live" | "mock";
   paypalClientId: string | null;
-  businesses: Array<{ id: string; name: string; category: string; city: string; timezone: string }>;
+  businesses: Array<{ id: string; name: string; city: string; timezone: string }>;
 };
-type ApprovalCard = {
+type Approval = {
   orderId: string;
-  businessId: string;
   businessName: string;
   service: string;
   date: string;
@@ -33,24 +31,31 @@ type ApprovalCard = {
   policy: string;
   expiresAt: number;
 };
-type Booking = {
+type MyBooking = {
   id: string;
   ref: string;
+  chatId: string;
+  businessName: string;
+  city: string;
+  timezone: string;
   serviceName: string;
   date: string;
   time: string;
-  customerName: string;
   amount: string;
   currency: string;
-  captureId: string;
   status: "confirmed" | "refund_pending" | "refunded";
+  policy: string;
+  cancelUntil: number | null;
   createdAt: number;
 };
+type Chat = { id: string; title: string; at: number };
+type View = { name: "chat"; id: string | null } | { name: "bookings" } | { name: "settings" };
 
-const STARTERS = [
-  { label: "A silk press in Lagos", text: "I'm Ada. Book me a silk press in Lagos, Saturday if possible." },
-  { label: "Physio in London", text: "My name is Tom. A physio follow-up in London tomorrow afternoon, please." },
-  { label: "A cooking class in Nairobi", text: "I'm Wanjiru. Find me a cooking class in Nairobi this week." },
+const SUGGESTIONS = [
+  "Book me a silk press in Lagos on Saturday",
+  "A physio follow-up in London tomorrow afternoon",
+  "Order a celebration cake for pickup",
+  "Find me a cooking class in Nairobi this week",
 ];
 
 // ---------- helpers ----------
@@ -61,63 +66,130 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   return json as T;
 }
 
-function useSession(): string {
-  return useMemo(() => {
-    const key = "oap-session";
-    let id = localStorage.getItem(key);
-    if (!id || !/^[a-z0-9-]{8,64}$/.test(id)) {
-      id = crypto.randomUUID();
-      localStorage.setItem(key, id);
+function useStored<T>(key: string, initial: T): [T, (v: T | ((p: T) => T)) => void] {
+  const [v, setV] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
     }
-    return id;
-  }, []);
+  });
+  const set = useCallback(
+    (next: T | ((p: T) => T)) =>
+      setV((prev) => {
+        const val = typeof next === "function" ? (next as (p: T) => T)(prev) : next;
+        localStorage.setItem(key, JSON.stringify(val));
+        return val;
+      }),
+    [key],
+  );
+  return [v, set];
 }
 
-function useEvents(url: string | null): WireEvent[] {
+function useEvents(chatId: string | null): WireEvent[] {
   const [events, setEvents] = useState<WireEvent[]>([]);
   useEffect(() => {
-    if (!url) return;
     setEvents([]);
-    const es = new EventSource(url);
+    if (!chatId) return;
+    const es = new EventSource(`/api/events?session=${chatId}`);
     es.onmessage = (m) => {
       const e = JSON.parse(m.data) as WireEvent;
       setEvents((prev) => (prev.some((x) => x.id === e.id) ? prev : [...prev, e]));
     };
     return () => es.close();
-  }, [url]);
+  }, [chatId]);
   return events;
 }
 
-/** Keep a scroll container pinned to its end when `dep` changes. */
-function useStickToBottom(dep: unknown) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // Braces matter: newer browsers return a Promise from scroll methods,
-    // and React would call it as a cleanup function.
-    const el = ref.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [dep]);
-  return ref;
-}
-
-const cityOf = (tz: string) => tz.split("/")[1]?.replace("_", " ") ?? tz;
 const niceDate = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-const money = (s: string | undefined) => s?.match(/(\d+\.\d{2})/)?.[1];
-const initials = (name = "") =>
-  name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("");
+const cityOf = (tz: string) => tz.split("/")[1]?.replace("_", " ") ?? tz;
+const money = (s?: string) => s?.match(/(\d+\.\d{2})/)?.[1];
+const shortWhen = (t: number) => new Date(t).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+// ---------- turn model: one request from you and everything that followed ----------
+type Step = { id: number; text: string; tone?: "bad" | "ok" };
+type Turn = {
+  key: number;
+  user: string;
+  steps: Step[];
+  replies: string[];
+  approvals: Approval[];
+  receipts: Array<{ id: number; orderId: string; title: string; detail?: string }>;
+  businesses: string[];
+};
+
+function describe(e: WireEvent, biz: (id?: string) => string): Step | null {
+  const r = (e.data?.result ?? {}) as Record<string, unknown>;
+  let input: Record<string, unknown> = {};
+  try {
+    input = e.detail ? JSON.parse(e.detail) : {};
+  } catch {
+    /* not JSON */
+  }
+  switch (e.kind) {
+    case "tool":
+      if (e.title === "find_businesses") {
+        const n = (r.businesses as unknown[] | undefined)?.length ?? 0;
+        return { id: e.id, text: `Searched ${n} businesses that take agent bookings` };
+      }
+      if (e.title === "request_payment_approval") return { id: e.id, text: "Sent the payment to you to approve" };
+      if (e.title === "list_services") return { id: e.id, text: `${biz(e.businessId)} shared its services and prices` };
+      if (e.title === "check_availability")
+        return { id: e.id, text: `${biz(e.businessId)} checked free times on ${niceDate(String(input.date ?? ""))}` };
+      if (e.title === "hold_time")
+        return "error" in r
+          ? { id: e.id, text: `${biz(e.businessId)} could not hold that time`, tone: "bad" }
+          : { id: e.id, text: `${biz(e.businessId)} held ${String(input.time)} for 15 minutes` };
+      if (e.title === "create_payment") return null; // the PayPal line says it better
+      return { id: e.id, text: e.title };
+    case "buyer_to_business":
+      return { id: e.id, text: `Messaged ${biz(e.businessId)}'s AI Secretary` };
+    case "business_to_buyer":
+      return { id: e.id, text: `${biz(e.businessId)} replied` };
+    case "paypal":
+      if (e.title === "Create PayPal order") return { id: e.id, text: `Created a PayPal order for $${money(e.detail) ?? ""}` };
+      if (e.title.startsWith("Order ")) return null;
+      if (e.title.startsWith("Capture COMPLETED")) return { id: e.id, text: `PayPal confirmed $${money(e.detail) ?? ""}`, tone: "ok" };
+      if (e.title.startsWith("Refund COMPLETED")) return { id: e.id, text: "PayPal refunded the payment", tone: "ok" };
+      if (e.title.includes("requested")) return null;
+      return { id: e.id, text: e.title, tone: "bad" };
+    case "guardrail":
+      return { id: e.id, text: e.title, tone: "bad" };
+    default:
+      return null;
+  }
+}
+
+function buildTurns(events: WireEvent[], biz: (id?: string) => string): Turn[] {
+  const turns: Turn[] = [];
+  for (const e of events) {
+    if (e.kind === "assistant" && e.data?.role === "user") {
+      turns.push({ key: e.id, user: e.detail ?? "", steps: [], replies: [], approvals: [], receipts: [], businesses: [] });
+      continue;
+    }
+    const t = turns[turns.length - 1];
+    if (!t) continue;
+    if (e.businessId && !t.businesses.includes(biz(e.businessId))) t.businesses.push(biz(e.businessId));
+    if (e.kind === "assistant") t.replies.push(e.detail ?? "");
+    else if (e.kind === "approval") t.approvals.push(e.data as unknown as Approval);
+    else if (e.kind === "booking") t.receipts.push({ id: e.id, orderId: String(e.data?.orderId ?? ""), title: e.title, detail: e.detail });
+    const s = describe(e, biz);
+    if (s) t.steps.push(s);
+  }
+  return turns;
+}
 
 // ---------- app ----------
 export function App() {
-  const sessionId = useSession();
   const [config, setConfig] = useState<Config | null>(null);
-  const events = useEvents(`/api/events?session=${sessionId}`);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [chats, setChats] = useStored<Chat[]>("ap-chats", []);
+  const [limit, setLimit] = useStored<number>("ap-limit", 50);
+  const [view, setView] = useState<View>({ name: "chat", id: null });
+  const [drawer, setDrawer] = useState(false);
+  // Remount the chat only when you navigate, not when a new chat gets its id.
+  const [chatKey, setChatKey] = useState("new-0");
 
   useEffect(() => {
     fetch("/api/config")
@@ -126,254 +198,299 @@ export function App() {
       .catch(() => setConfig(null));
   }, []);
 
-  const send = useCallback(
-    async (msg: string) => {
-      const t = msg.trim();
-      if (!t || busy) return;
-      setBusy(true);
-      setError(null);
-      try {
-        await post("/api/chat", { session: sessionId, text: t });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "The message did not send. Try again.");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [busy, sessionId],
-  );
-
-  const reset = () => {
-    localStorage.removeItem("oap-session");
-    location.reload();
+  const go = (v: View) => {
+    setView(v);
+    if (v.name === "chat") setChatKey(v.id ?? `new-${Date.now()}`);
+    setDrawer(false);
   };
-
-  const activeBiz = [...events].reverse().find((e) => e.businessId)?.businessId;
+  const chatId = view.name === "chat" ? view.id : null;
 
   return (
-    <div className="page">
-      <nav className="nav">
-        <a className="logo" href="/" aria-label="Agent Pay home">
-          <span className="logo-mark" aria-hidden>
-            <i />
-            <i />
+    <div className={`app ${drawer ? "drawer-open" : ""}`}>
+      <aside className="side" aria-label="Navigation">
+        <div className="side-top">
+          <span className="brand">
+            <Mark /> Agent Pay
           </span>
-          Agent Pay
-        </a>
-        <div className="nav-right">
+        </div>
+        <button className="side-new" onClick={() => go({ name: "chat", id: null })}>
+          <Icon d="M12 5v14M5 12h14" /> New chat
+        </button>
+        <nav className="side-nav">
+          <button className={view.name === "bookings" ? "on" : ""} onClick={() => go({ name: "bookings" })}>
+            <Icon d="M7 3v3M17 3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" /> Bookings
+          </button>
+          <button className={view.name === "settings" ? "on" : ""} onClick={() => go({ name: "settings" })}>
+            <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" /> Spending limit
+          </button>
+        </nav>
+        <div className="side-label">Chats</div>
+        <div className="side-chats">
+          {chats.length === 0 && <p className="side-empty">Your chats will show here.</p>}
+          {chats.map((c) => (
+            <button key={c.id} className={chatId === c.id ? "on" : ""} onClick={() => go({ name: "chat", id: c.id })} title={c.title}>
+              {c.title}
+            </button>
+          ))}
+        </div>
+        <div className="side-foot">
+          <span className="me">G</span>
+          <div>
+            <strong>Guest</strong>
+            <span>${limit} limit per payment</span>
+          </div>
+        </div>
+      </aside>
+      <button className="scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
+
+      <main className="main">
+        <header className="top">
+          <button className="icon-btn menu" aria-label="Open menu" onClick={() => setDrawer(true)}>
+            <Icon d="M4 7h16M4 12h16M4 17h16" />
+          </button>
+          <span className="top-title">
+            {view.name === "bookings" ? "Bookings" : view.name === "settings" ? "Spending limit" : "Agent Pay"}
+          </span>
           {config && (
-            <span className="mode" title={config.model ?? "Scripted agents, no AI key set"}>
-              <span className={`mode-dot ${config.ai === "claude" && config.paypal !== "mock" ? "on" : ""}`} />
-              {config.ai === "claude" ? "Claude" : "Scripted agents"} · {config.paypal === "mock" ? "PayPal mock" : "PayPal Sandbox"}
+            <span className="env" title="Test mode: no real money moves">
+              {config.paypal === "mock" ? "Test mode" : "PayPal Sandbox"}
             </span>
           )}
-          <button className="nav-btn" onClick={reset}>
-            Reset demo
+          <button className="icon-btn new" aria-label="New chat" onClick={() => go({ name: "chat", id: null })}>
+            <Icon d="M12 5v14M5 12h14" />
           </button>
-        </div>
-      </nav>
+        </header>
 
-      <header className="hero">
-        <h1>
-          Your agent books it. <em>You approve the payment.</em>
-        </h1>
-        <p>
-          Your AI agent agrees the booking with the business's own AI Secretary, then brings back one PayPal payment. Nothing is
-          charged until you say yes.
-        </p>
-      </header>
-
-      <main className="stage">
-        <CustomerPhone sessionId={sessionId} events={events} config={config} busy={busy} error={error} onSend={send} />
-        <Channel events={events} config={config} busy={busy} />
-        <BusinessPhone config={config} follow={activeBiz} />
+        {view.name === "chat" && (
+          <ChatView
+            key={chatKey}
+            chatId={view.id}
+            config={config}
+            limit={limit}
+            onCreate={(id, title) => {
+              setChats((cs) => [{ id, title, at: Date.now() }, ...cs].slice(0, 50));
+              setView({ name: "chat", id });
+            }}
+            openBookings={() => go({ name: "bookings" })}
+          />
+        )}
+        {view.name === "bookings" && <BookingsView chats={chats} openChat={(id) => go({ name: "chat", id })} />}
+        {view.name === "settings" && <LimitView limit={limit} setLimit={setLimit} />}
       </main>
-
-      <section className="rules" aria-label="Why it is safe">
-        <div className="rule">
-          <h3>The business sets the price</h3>
-          <p>Every PayPal order is created at the business's listed price. Nothing an AI writes can change the amount.</p>
-        </div>
-        <div className="rule">
-          <h3>Your limit is a hard limit</h3>
-          <p>Above your spending limit, the server refuses to show you the payment at all. Your agent has no way to pay on its own.</p>
-        </div>
-        <div className="rule">
-          <h3>Booked only when PayPal says so</h3>
-          <p>A booking exists only after PayPal confirms the capture, for the exact amount. A hold that runs out is never charged.</p>
-        </div>
-      </section>
-
-      <footer className="foot">
-        Built by Ordina for the PayPal AI Hackathon 2026 · Agents on Claude · Payments by PayPal · Fictional businesses, test money only
-      </footer>
     </div>
   );
 }
 
-// ---------- device frame ----------
-function Phone({ label, children, tone }: { label: string; children: ReactNode; tone: "you" | "biz" }) {
-  return (
-    <figure className={`device device-${tone}`} aria-label={label}>
-      <figcaption className="device-label">{label}</figcaption>
-      <div className="phone">
-        <div className="phone-screen">
-          <div className="statusbar" aria-hidden>
-            <span>9:41</span>
-            <span className="island" />
-            <span className="sb-icons">
-              <i />
-              <i />
-              <b />
-            </span>
+// ---------- chat ----------
+function ChatView({
+  chatId,
+  config,
+  limit,
+  onCreate,
+  openBookings,
+}: {
+  chatId: string | null;
+  config: Config | null;
+  limit: number;
+  onCreate: (id: string, title: string) => void;
+  openBookings: () => void;
+}) {
+  const [liveId, setLiveId] = useState<string | null>(chatId);
+  const events = useEvents(liveId);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const biz = useCallback((id?: string) => config?.businesses.find((b) => b.id === id)?.name ?? "The business", [config]);
+  const turns = useMemo(() => buildTurns(events, biz), [events, biz]);
+  const paid = useMemo(() => new Set(events.filter((e) => e.kind === "booking" && e.data?.orderId).map((e) => String(e.data!.orderId))), [events]);
+
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [events.length, busy]);
+
+  const send = async (text: string) => {
+    const t = text.trim();
+    if (!t || busy) return;
+    let id = liveId;
+    if (!id) {
+      id = crypto.randomUUID();
+      setLiveId(id);
+      onCreate(id, t.length > 42 ? `${t.slice(0, 40)}...` : t);
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await post("/api/budget", { session: id, budget: limit });
+      await post("/api/chat", { session: id, text: t });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't send. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!liveId || (turns.length === 0 && !busy)) {
+    return (
+      <div className="home">
+        <div className="home-inner">
+          <Mark big />
+          <h1>What can I book or buy for you?</h1>
+          <p className="home-sub">I find the business, agree the details with its AI Secretary, and bring you one PayPal payment to approve.</p>
+          <Composer onSend={send} busy={busy} autoFocus />
+          <div className="suggest">
+            {SUGGESTIONS.map((s) => (
+              <button key={s} onClick={() => send(s)} disabled={busy}>
+                {s}
+              </button>
+            ))}
           </div>
-          {children}
+          {error && <p className="err">{error}</p>}
         </div>
       </div>
-    </figure>
+    );
+  }
+
+  const last = turns[turns.length - 1];
+  return (
+    <div className="chat">
+      <div className="thread" ref={scroller}>
+        <div className="thread-inner">
+          {turns.map((t) => (
+            <TurnView
+              key={t.key}
+              turn={t}
+              live={busy && t === last}
+              paid={paid}
+              chatId={liveId}
+              config={config}
+              openBookings={openBookings}
+            />
+          ))}
+          {error && <p className="err">{error}</p>}
+        </div>
+      </div>
+      <div className="dock">
+        <Composer onSend={send} busy={busy} />
+        <p className="dock-note">Your agent can't pay by itself. Every payment waits for you in PayPal.</p>
+      </div>
+    </div>
   );
 }
 
-// ---------- the customer's phone ----------
-function CustomerPhone({
-  sessionId,
-  events,
+function TurnView({
+  turn,
+  live,
+  paid,
+  chatId,
   config,
-  busy,
-  error,
-  onSend,
+  openBookings,
 }: {
-  sessionId: string;
-  events: WireEvent[];
+  turn: Turn;
+  live: boolean;
+  paid: Set<string>;
+  chatId: string;
   config: Config | null;
-  busy: boolean;
-  error: string | null;
-  onSend: (t: string) => void;
+  openBookings: () => void;
 }) {
-  const [text, setText] = useState("");
-  const [budget, setBudget] = useState(50);
-  const [limitOpen, setLimitOpen] = useState(false);
-
-  useEffect(() => {
-    post("/api/budget", { session: sessionId, budget }).catch(() => {});
-  }, [sessionId, budget]);
-
-  const paidOrders = useMemo(
-    () => new Set(events.filter((e) => e.kind === "booking" && e.data?.orderId).map((e) => String(e.data!.orderId))),
-    [events],
-  );
-
-  // A payment card is raised mid-turn, before the reply that explains it;
-  // show it after that reply so the conversation reads in order.
-  const items = useMemo(() => {
-    const out: WireEvent[] = [];
-    let held: WireEvent[] = [];
-    for (const e of events) {
-      if (e.kind === "approval") held.push(e);
-      else if (e.kind === "assistant") {
-        out.push(e);
-        if (e.data?.role !== "user") {
-          out.push(...held);
-          held = [];
-        }
-      }
-    }
-    return [...out, ...held];
-  }, [events]);
-
-  const scroller = useStickToBottom(`${items.length}-${busy}`);
-  const submit = (t: string) => {
-    setText("");
-    onSend(t);
-  };
-
+  const [open, setOpen] = useState(false);
+  const [first, ...later] = turn.replies;
+  const lastStep = turn.steps[turn.steps.length - 1];
   return (
-    <Phone label="Your phone" tone="you">
-      <div className="appbar">
-        <span className="agent-orb" aria-hidden />
-        <div className="appbar-text">
-          <strong>Your agent</strong>
-          <span>{busy ? "Working on it" : "Books things for you"}</span>
-        </div>
-        <button className={`limit-pill ${limitOpen ? "open" : ""}`} onClick={() => setLimitOpen((o) => !o)} aria-expanded={limitOpen}>
-          Limit ${budget}
-        </button>
+    <div className="turn">
+      <div className="you">
+        <p>{turn.user}</p>
       </div>
-      {limitOpen && (
-        <div className="limit-sheet">
-          <div className="limit-top">
-            <label htmlFor="limit">Spending limit</label>
-            <output htmlFor="limit">${budget}</output>
-          </div>
-          <input id="limit" type="range" min={10} max={150} step={5} value={budget} onChange={(e) => setBudget(Number(e.target.value))} />
-          <p>Your agent can't bring you a payment above this.</p>
+      <div className="agent">
+        <Mark small />
+        <div className="agent-body">
+          {(turn.steps.length > 0 || live) && (
+            <div className={`work ${open ? "open" : ""}`}>
+              <button className="work-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+                {live ? <span className="spin" aria-hidden /> : <Icon d="M5 12l4 4L19 6" />}
+                <span className="work-title">
+                  {live
+                    ? lastStep?.text ?? "Thinking"
+                    : turn.businesses.length
+                      ? `Worked with ${turn.businesses.join(", ")}`
+                      : "Looked into it"}
+                </span>
+                <span className="work-count">{turn.steps.length} steps</span>
+                <Icon d="M9 6l6 6-6 6" className="chev" />
+              </button>
+              {open && (
+                <ol className="work-steps">
+                  {turn.steps.map((s) => (
+                    <li key={s.id} className={s.tone ?? ""}>
+                      {s.text}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
+          {first && <p className="reply">{first}</p>}
+          {turn.approvals.map((a) => (
+            <PayCard key={a.orderId} a={a} paid={paid.has(a.orderId)} chatId={chatId} config={config} />
+          ))}
+          {turn.receipts
+            .filter((r) => !r.title.toLowerCase().includes("refund"))
+            .map((r) => (
+              <Receipt key={r.id} r={r} openBookings={openBookings} />
+            ))}
+          {later.map((t, i) => (
+            <p className="reply" key={i}>
+              {t}
+            </p>
+          ))}
         </div>
-      )}
-
-      <div className="convo" ref={scroller}>
-        {items.length === 0 && (
-          <div className="hello">
-            <span className="agent-orb big" aria-hidden />
-            <p className="hello-title">What should I book?</p>
-            <p className="hello-sub">I'll find the place, agree a time with them, and check with you before any money moves.</p>
-            <div className="starters">
-              {STARTERS.map((s) => (
-                <button key={s.label} className="starter" onClick={() => submit(s.text)} disabled={busy}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {items.map((e) =>
-          e.kind === "approval" ? (
-            <Ticket
-              key={e.id}
-              card={e.data as unknown as ApprovalCard}
-              paid={paidOrders.has(String(e.data?.orderId))}
-              sessionId={sessionId}
-              config={config}
-            />
-          ) : (
-            <div key={e.id} className={`bubble ${e.data?.role === "user" ? "out" : "in"}`}>
-              {e.detail}
-            </div>
-          ),
-        )}
-        {busy && (
-          <div className="bubble in thinking" aria-live="polite">
-            <span className="dots" aria-hidden>
-              <i />
-              <i />
-              <i />
-            </span>
-          </div>
-        )}
       </div>
+    </div>
+  );
+}
 
-      {error && <p className="phone-error">{error}</p>}
-      <form
-        className="compose"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit(text);
+function Composer({ onSend, busy, autoFocus }: { onSend: (t: string) => void; busy: boolean; autoFocus?: boolean }) {
+  const [text, setText] = useState("");
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+  }, [text]);
+  const submit = () => {
+    if (!text.trim() || busy) return;
+    onSend(text);
+    setText("");
+  };
+  return (
+    <form
+      className="composer"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <textarea
+        ref={ref}
+        rows={1}
+        value={text}
+        autoFocus={autoFocus}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
         }}
-      >
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Message your agent"
-          maxLength={500}
-          disabled={busy}
-          aria-label="Message your agent"
-        />
-        <button disabled={busy || !text.trim()} aria-label="Send">
-          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden>
-            <path d="M10 16V4M5 9l5-5 5 5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </form>
-    </Phone>
+        placeholder="Ask your agent to book or buy something"
+        maxLength={1000}
+        aria-label="Message your agent"
+      />
+      <button className="send" disabled={busy || !text.trim()} aria-label="Send">
+        {busy ? <span className="spin light" aria-hidden /> : <Icon d="M12 19V5M6 11l6-6 6 6" />}
+      </button>
+    </form>
   );
 }
 
@@ -387,9 +504,8 @@ function useCountdown(until: number) {
   return { left, label: `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, "0")}` };
 }
 
-/** The payment the agents agreed, waiting for the human. */
-function Ticket({ card, paid, sessionId, config }: { card: ApprovalCard; paid: boolean; sessionId: string; config: Config | null }) {
-  const { left, label } = useCountdown(card.expiresAt);
+function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chatId: string; config: Config | null }) {
+  const { left, label } = useCountdown(a.expiresAt);
   const [working, setWorking] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const expired = !paid && left === 0;
@@ -398,66 +514,55 @@ function Ticket({ card, paid, sessionId, config }: { card: ApprovalCard; paid: b
     setWorking(true);
     setMsg(null);
     try {
-      await post("/api/pay/capture", { session: sessionId, orderId: card.orderId });
+      await post("/api/pay/capture", { session: chatId, orderId: a.orderId });
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "PayPal did not confirm the payment. Nothing was charged.");
     } finally {
       setWorking(false);
     }
-  }, [card.orderId, sessionId]);
+  }, [a.orderId, chatId]);
 
   const mockPay = async () => {
     setWorking(true);
-    await post("/api/pay/mock-approve", { session: sessionId, orderId: card.orderId }).catch(() => {});
+    await post("/api/pay/mock-approve", { session: chatId, orderId: a.orderId }).catch(() => {});
     await capture();
   };
 
   return (
-    <div className={`ticket ${paid ? "paid" : ""} ${expired ? "expired" : ""}`}>
-      <div className="ticket-top">
-        <span className="biz-chip">
-          <span className="biz-dot">{initials(card.businessName)}</span>
-          {card.businessName}
-        </span>
-        {paid ? (
-          <span className="ticket-state ok">
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-              <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Paid
+    <div className={`pay ${paid ? "is-paid" : ""} ${expired ? "is-expired" : ""}`}>
+      <div className="pay-head">
+        <span>{paid ? "Paid" : expired ? "Hold ended" : "Approve payment"}</span>
+        {!paid && !expired && <span className="pay-timer">Held for {label}</span>}
+      </div>
+      <div className="pay-body">
+        <div className="pay-what">
+          <strong>{a.service}</strong>
+          <span>{a.businessName}</span>
+          <span>
+            {niceDate(a.date)}, {a.time} {cityOf(a.timezone)} time
           </span>
-        ) : expired ? (
-          <span className="ticket-state">Hold ended</span>
-        ) : (
-          <span className="ticket-state">Held {label}</span>
-        )}
-      </div>
-      <div className="ticket-what">{card.service}</div>
-      <div className="ticket-when">
-        {niceDate(card.date)} · {card.time} <span>{cityOf(card.timezone)} time</span>
-      </div>
-      <div className="ticket-total">
-        <span>Total</span>
-        <strong>
-          ${card.amount} <small>{card.currency}</small>
-        </strong>
+        </div>
+        <div className="pay-amt">
+          ${a.amount}
+          <small>{a.currency}</small>
+        </div>
       </div>
       {!paid && !expired && (
-        <div className="ticket-pay">
+        <div className="pay-action">
           {config?.paypal !== "mock" && config?.paypalClientId ? (
-            <PayPalScriptProvider options={{ clientId: config.paypalClientId, currency: card.currency, intent: "capture" }}>
+            <PayPalScriptProvider options={{ clientId: config.paypalClientId, currency: a.currency, intent: "capture" }}>
               <PayPalButtons
-                style={{ layout: "horizontal", tagline: false, height: 42, shape: "pill", color: "gold" }}
+                style={{ layout: "horizontal", tagline: false, height: 44, shape: "pill", color: "gold" }}
                 disabled={working}
-                createOrder={async () => card.orderId}
+                createOrder={async () => a.orderId}
                 onApprove={async () => capture()}
                 onError={() => setMsg("PayPal could not finish the payment. Nothing was charged.")}
               />
             </PayPalScriptProvider>
           ) : (
-            <button className="pp-btn" onClick={mockPay} disabled={working}>
+            <button className="pp" onClick={mockPay} disabled={working}>
               {working ? (
-                "Confirming"
+                "Confirming with PayPal"
               ) : (
                 <>
                   Pay with <b>Pay</b>
@@ -468,271 +573,196 @@ function Ticket({ card, paid, sessionId, config }: { card: ApprovalCard; paid: b
           )}
         </div>
       )}
-      <p className="ticket-fine">{paid ? "Booked. The business has it." : expired ? "Nothing was charged. Ask your agent to hold it again." : card.policy}</p>
-      {msg && <p className="ticket-fine err">{msg}</p>}
+      <p className="pay-fine">
+        {paid ? "Payment confirmed by PayPal." : expired ? "Nothing was charged. Ask me to hold it again." : a.policy}
+      </p>
+      {msg && <p className="pay-fine err">{msg}</p>}
     </div>
   );
 }
 
-// ---------- the channel between the two agents ----------
-type MoneyState = { step: "none" | "order" | "waiting" | "paid" | "refunded" | "blocked"; amount?: string; note?: string };
-
-function moneyState(events: WireEvent[]): MoneyState {
-  let s: MoneyState = { step: "none" };
-  for (const e of events) {
-    if (e.kind === "paypal" && e.title === "Create PayPal order") s = { step: "order", amount: money(e.detail) };
-    else if (e.kind === "approval") s = { step: "waiting", amount: String(e.data?.amount ?? s.amount ?? "") };
-    else if (e.kind === "guardrail") s = { step: "blocked", amount: money(e.detail) ?? s.amount, note: e.title };
-    else if (e.kind === "paypal" && e.title.startsWith("Capture COMPLETED")) s = { step: "paid", amount: money(e.detail) ?? s.amount };
-    else if (e.kind === "paypal" && e.title.startsWith("Refund COMPLETED")) s = { step: "refunded", amount: s.amount };
-  }
-  return s;
-}
-
-function Channel({ events, config, busy }: { events: WireEvent[]; config: Config | null; busy: boolean }) {
-  const [raw, setRaw] = useState(false);
-  const shown = events.filter((e) => (raw ? e.kind !== "assistant" : e.kind !== "assistant" && e.kind !== "tool"));
-  const ref = useStickToBottom(`${shown.length}-${busy}-${raw}`);
-  const bizName = (id?: string) => config?.businesses.find((b) => b.id === id)?.name ?? "The business";
-  const active = [...events].reverse().find((e) => e.businessId)?.businessId;
-  const toolCount = events.filter((e) => e.kind === "tool").length;
-  const m = moneyState(events);
-
+function Receipt({ r, openBookings }: { r: { title: string; detail?: string }; openBookings: () => void }) {
+  const ref = r.title.match(/ref (\w+)/)?.[1];
   return (
-    <section className="channel" aria-label="What the two agents say to each other">
-      <div className="channel-head">
-        <span className="ch-party you">Your agent</span>
-        <span className={`ch-line ${busy ? "busy" : ""}`} aria-hidden>
-          <i />
-        </span>
-        <span className="ch-party biz">{active ? `${bizName(active)}'s Secretary` : "The business's Secretary"}</span>
+    <div className="receipt">
+      <span className="receipt-ok" aria-hidden>
+        <Icon d="M5 12l4 4L19 6" />
+      </span>
+      <div>
+        <strong>Booked{ref ? `, ref ${ref}` : ""}</strong>
+        {r.detail && <span>{r.detail}</span>}
       </div>
-
-      <div className="channel-feed" ref={ref}>
-        {shown.length === 0 && !busy && (
-          <div className="channel-empty">
-            <p>The agents talk here.</p>
-            <span>Ask your agent for something on the left. You'll see it agree the details with the business, live.</span>
-          </div>
-        )}
-        {shown.map((e) => (
-          <ChannelItem key={e.id} e={e} biz={bizName(e.businessId)} />
-        ))}
-        {busy && (
-          <div className="ch-typing" aria-hidden>
-            <span className="dots">
-              <i />
-              <i />
-              <i />
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className={`gate gate-${m.step}`}>
-        <span className="gate-logo" aria-hidden>
-          <b>Pay</b>
-          <b className="pal">Pal</b>
-        </span>
-        <div className="gate-text">
-          <strong>
-            {
-              {
-                none: "No payment yet",
-                order: "Order created",
-                waiting: "Waiting for your approval",
-                paid: "Payment captured",
-                refunded: "Refunded",
-                blocked: "Payment blocked",
-              }[m.step]
-            }
-          </strong>
-          <span>
-            {
-              {
-                none: "Money moves only after you approve.",
-                order: "At the business's listed price.",
-                waiting: "Your agent can't approve for you.",
-                paid: "Confirmed by PayPal. The booking is made.",
-                refunded: "Returned by the business through PayPal.",
-                blocked: "It was above your spending limit.",
-              }[m.step]
-            }
-          </span>
-        </div>
-        {m.amount && m.step !== "none" && <span className="gate-amount">${m.amount}</span>}
-        {toolCount > 0 && (
-          <button className="raw-toggle" onClick={() => setRaw((r) => !r)} aria-pressed={raw}>
-            {raw ? "Hide raw calls" : `Show raw calls (${toolCount})`}
-          </button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function ChannelItem({ e, biz }: { e: WireEvent; biz: string }) {
-  if (e.kind === "buyer_to_business" || e.kind === "business_to_buyer") {
-    const you = e.kind === "buyer_to_business";
-    return (
-      <div className={`ch-msg ${you ? "from-you" : "from-biz"}`}>
-        <span className="ch-who">{you ? "Your agent" : `${biz}'s Secretary`}</span>
-        <p>{e.detail}</p>
-      </div>
-    );
-  }
-  if (e.kind === "tool") {
-    return (
-      <div className={`ch-raw ${e.actor === "buyer" ? "from-you" : "from-biz"}`}>
-        <code>
-          {e.title}({e.detail === "{}" ? "" : e.detail})
-        </code>
-      </div>
-    );
-  }
-  // Milestones, said plainly.
-  let tone = "info";
-  let text = e.title;
-  if (e.kind === "paypal") {
-    if (e.title === "Create PayPal order") text = `PayPal order created for $${money(e.detail) ?? ""}`;
-    else if (e.title.startsWith("Order ")) return null;
-    else if (e.title.startsWith("Capture COMPLETED")) {
-      tone = "ok";
-      text = `PayPal captured $${money(e.detail) ?? ""}`;
-    } else if (e.title.startsWith("Refund requested")) text = "The business started a refund";
-    else if (e.title.startsWith("Refund COMPLETED")) text = "PayPal refunded the payment";
-    else tone = "bad";
-  } else if (e.kind === "approval") {
-    tone = "you";
-    text = "Sent to you to approve";
-  } else if (e.kind === "guardrail") {
-    tone = "bad";
-    text = `${e.title}. ${e.detail ?? ""}`;
-  } else if (e.kind === "booking") {
-    tone = e.title.includes("refund") ? "info" : "ok";
-  }
-  return (
-    <div className={`ch-mark ${tone}`}>
-      <span>{text}</span>
+      <button onClick={openBookings}>View</button>
     </div>
   );
 }
 
-// ---------- the business owner's phone ----------
-function BusinessPhone({ config, follow }: { config: Config | null; follow?: string }) {
-  const [biz, setBiz] = useState("lumen-hair");
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [refunding, setRefunding] = useState<string | null>(null);
-  const ownerEvents = useEvents(`/api/owner/${biz}/events`);
-  const firstLoad = useRef(true);
-  const known = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (follow) setBiz(follow);
-  }, [follow]);
+// ---------- bookings ----------
+function BookingsView({ chats, openChat }: { chats: Chat[]; openChat: (id: string) => void }) {
+  const [items, setItems] = useState<MyBooking[] | null>(null);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [working, setWorking] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ id: string; text: string; bad?: boolean } | null>(null);
+  const ids = chats.map((c) => c.id);
 
   const load = useCallback(() => {
-    fetch(`/api/owner/${biz}`)
-      .then((r) => r.json())
-      .then((j) => setBookings(j.bookings ?? []))
-      .catch(() => {});
-  }, [biz]);
-  useEffect(() => {
-    load();
-  }, [load, ownerEvents.length]);
-
-  useEffect(() => {
-    // Rows present on first load are not "new"; later arrivals glow once.
-    if (firstLoad.current && bookings.length) {
-      bookings.forEach((b) => known.current.add(b.id));
-      firstLoad.current = false;
+    if (!ids.length) {
+      setItems([]);
       return;
     }
-    const t = setTimeout(() => bookings.forEach((b) => known.current.add(b.id)), 4000);
-    return () => clearTimeout(t);
-  }, [bookings]);
+    fetch(`/api/bookings?sessions=${ids.join(",")}`)
+      .then((r) => r.json())
+      .then((j) => setItems(j.bookings ?? []))
+      .catch(() => setItems([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids.join(",")]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const refund = async (id: string) => {
-    setRefunding(id);
-    setError(null);
+  const cancel = async (b: MyBooking) => {
+    setWorking(b.id);
+    setMsg(null);
     try {
-      await post("/api/owner/refund", { bookingId: id, businessId: biz });
+      await post("/api/bookings/cancel", { sessions: ids, bookingId: b.id });
+      setMsg({ id: b.id, text: `Cancelled. PayPal is returning $${b.amount} to you.` });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The refund did not go through.");
+      setMsg({ id: b.id, text: e instanceof Error ? e.message : "Couldn't cancel.", bad: true });
     } finally {
-      setRefunding(null);
+      setWorking(null);
+      setConfirm(null);
     }
   };
 
-  const paid = bookings.filter((b) => b.status === "confirmed");
-  const takings = paid.reduce((n, b) => n + Number(b.amount), 0);
-  const current = config?.businesses.find((b) => b.id === biz);
+  const upcoming = (items ?? []).filter((b) => b.status === "confirmed");
+  const past = (items ?? []).filter((b) => b.status !== "confirmed");
 
   return (
-    <Phone label="The business owner's phone" tone="biz">
-      <div className="appbar">
-        <span className="biz-avatar" aria-hidden>
-          {initials(current?.name)}
-        </span>
-        <div className="appbar-text">
-          <strong>{current?.name ?? "Business"}</strong>
-          <span className="live">
-            <i /> Secretary answering
-          </span>
-        </div>
-      </div>
-
-      <div className="seg" role="tablist" aria-label="Choose a business">
-        {config?.businesses.map((b) => (
-          <button key={b.id} role="tab" aria-selected={b.id === biz} className={b.id === biz ? "on" : ""} onClick={() => setBiz(b.id)}>
-            {b.city}
-          </button>
-        ))}
-      </div>
-
-      <div className="owner-body">
-        <div className="takings">
-          <span>Paid through PayPal</span>
-          <strong>${takings.toFixed(2)}</strong>
-          <em>
-            {paid.length} {paid.length === 1 ? "booking" : "bookings"} · no invoices to chase
-          </em>
-        </div>
-
-        {error && <p className="phone-error">{error}</p>}
-        <div className="feed-title">Bookings</div>
-        {bookings.length === 0 && (
-          <p className="owner-empty">When a customer's agent books and the payment clears, it lands here. No forms, no chasing.</p>
+    <div className="page">
+      <div className="page-inner">
+        <h2>Bookings</h2>
+        <p className="page-sub">Everything your agent booked and you paid for.</p>
+        {items === null && <p className="muted">Loading</p>}
+        {items?.length === 0 && (
+          <div className="blank">
+            <p>No bookings yet.</p>
+            <span>Ask your agent for something, approve the payment, and it shows up here.</span>
+          </div>
         )}
-        <div className="bookings">
-          {bookings.map((b) => (
-            <div key={b.id} className={`bk ${known.current.has(b.id) ? "" : "fresh"} ${b.status}`}>
-              <div className="bk-row">
+        {upcoming.length > 0 && <div className="group">Upcoming</div>}
+        {upcoming.map((b) => {
+          const canCancel = b.cancelUntil !== null && Date.now() < b.cancelUntil;
+          return (
+            <div key={b.id} className="bk">
+              <div className="bk-main">
                 <strong>{b.serviceName}</strong>
-                <span className="bk-amt">${b.amount}</span>
-              </div>
-              <div className="bk-row sub">
                 <span>
-                  {b.customerName} · {niceDate(b.date)}, {b.time}
+                  {b.businessName}, {b.city}
                 </span>
-                {b.status === "confirmed" ? (
-                  <button className="bk-refund" onClick={() => refund(b.id)} disabled={refunding === b.id}>
-                    {refunding === b.id ? "Refunding" : "Refund"}
+                <span>
+                  {niceDate(b.date)} at {b.time} {cityOf(b.timezone)} time
+                </span>
+                <span className="bk-ref">
+                  Ref {b.ref} · Paid with PayPal ·{" "}
+                  <button className="linkish" onClick={() => openChat(b.chatId)}>
+                    Open chat
                   </button>
+                </span>
+              </div>
+              <div className="bk-side">
+                <span className="bk-amt">${b.amount}</span>
+                {confirm === b.id ? (
+                  <div className="confirm">
+                    <span>Cancel and get ${b.amount} back?</span>
+                    <div>
+                      <button className="btn-danger" onClick={() => cancel(b)} disabled={working === b.id}>
+                        {working === b.id ? "Cancelling" : "Cancel booking"}
+                      </button>
+                      <button className="btn-ghost" onClick={() => setConfirm(null)}>
+                        Keep it
+                      </button>
+                    </div>
+                  </div>
+                ) : canCancel ? (
+                  <>
+                    <button className="btn-line" onClick={() => setConfirm(b.id)}>
+                      Cancel
+                    </button>
+                    <span className="bk-note">Free until {shortWhen(b.cancelUntil!)}</span>
+                  </>
                 ) : (
-                  <span className="bk-status">{b.status === "refunded" ? "Refunded" : "Refund pending"}</span>
+                  <span className="bk-note">Past the free cancellation window</span>
                 )}
               </div>
-              <div className="bk-ref">
-                Paid via PayPal · ref {b.ref}
-                {!known.current.has(b.id) && <span className="new-tag">New</span>}
-              </div>
+              {msg?.id === b.id && <p className={`bk-msg ${msg.bad ? "bad" : ""}`}>{msg.text}</p>}
             </div>
-          ))}
-        </div>
+          );
+        })}
+        {past.length > 0 && <div className="group">Cancelled</div>}
+        {past.map((b) => (
+          <div key={b.id} className="bk is-past">
+            <div className="bk-main">
+              <strong>{b.serviceName}</strong>
+              <span>
+                {b.businessName}, {niceDate(b.date)} at {b.time}
+              </span>
+              <span className="bk-ref">Ref {b.ref}</span>
+            </div>
+            <div className="bk-side">
+              <span className="bk-amt">${b.amount}</span>
+              <span className="bk-note">{b.status === "refunded" ? "Refunded" : "Refund pending"}</span>
+            </div>
+            {msg?.id === b.id && <p className="bk-msg">{msg.text}</p>}
+          </div>
+        ))}
       </div>
-    </Phone>
+    </div>
   );
+}
+
+// ---------- spending limit ----------
+function LimitView({ limit, setLimit }: { limit: number; setLimit: (n: number) => void }) {
+  return (
+    <div className="page">
+      <div className="page-inner narrow">
+        <h2>Spending limit</h2>
+        <p className="page-sub">The most your agent may ask you to pay at once. Anything above it is refused before it reaches you.</p>
+        <div className="limit">
+          <div className="limit-val">${limit}</div>
+          <input
+            type="range"
+            min={10}
+            max={300}
+            step={5}
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            aria-label="Spending limit in US dollars"
+          />
+          <div className="limit-scale">
+            <span>$10</span>
+            <span>$300</span>
+          </div>
+        </div>
+        <ul className="promises">
+          <li>Your agent never pays by itself. Every payment waits for you in PayPal.</li>
+          <li>Prices come from the business, never from the AI.</li>
+          <li>A booking only exists once PayPal confirms the payment.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ---------- tiny UI bits ----------
+function Icon({ d, className }: { d: string; className?: string }) {
+  return (
+    <svg className={`ic ${className ?? ""}`} viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Mark({ big, small }: { big?: boolean; small?: boolean }) {
+  return <span className={`mark ${big ? "big" : ""} ${small ? "small" : ""}`} aria-hidden />;
 }

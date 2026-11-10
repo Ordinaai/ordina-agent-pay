@@ -18,6 +18,7 @@ export type Business = {
   currency: "USD";
   about: string;
   policy: string;
+  cancelHours: number; // a customer may cancel for a full refund up to this many hours before
   hours: Record<number, [string, string] | null>; // 0 = Sunday
   services: Service[];
 };
@@ -80,6 +81,7 @@ export const BUSINESSES: Business[] = [
     currency: "USD",
     about: "Natural hair care, braids and silk presses in Lekki Phase 1.",
     policy: "Free cancellation up to 24 hours before the appointment, full refund.",
+    cancelHours: 24,
     hours: weekdays("09:00", "18:00"),
     services: [
       { id: "silk-press", name: "Silk press", minutes: 90, price: "35.00" },
@@ -96,6 +98,7 @@ export const BUSINESSES: Business[] = [
     currency: "USD",
     about: "Sports injuries and back pain, two chartered physiotherapists.",
     policy: "Cancel up to 12 hours before for a full refund.",
+    cancelHours: 12,
     hours: weekdays("08:00", "19:00"),
     services: [
       { id: "assessment", name: "Initial assessment", minutes: 45, price: "65.00" },
@@ -112,13 +115,50 @@ export const BUSINESSES: Business[] = [
     currency: "USD",
     about: "Small group cooking classes, East African and plant-based menus.",
     policy: "Full refund up to 48 hours before the class.",
+    cancelHours: 48,
     hours: weekdays("11:00", "20:00"),
     services: [
       { id: "pilau-class", name: "Pilau and chapati class", minutes: 120, price: "40.00" },
       { id: "plant-based", name: "Plant-based weeknight class", minutes: 90, price: "30.00" },
     ],
   },
+  {
+    id: "crumb-co",
+    name: "Crumb & Co Bakery",
+    category: "Bakery (order ahead, pick up)",
+    city: "Lagos",
+    timezone: "Africa/Lagos",
+    currency: "USD",
+    about: "Celebration cakes and pastry boxes in Victoria Island. Order ahead and pick up at a set time.",
+    policy: "Cancel up to 24 hours before pickup for a full refund.",
+    cancelHours: 24,
+    hours: weekdays("08:00", "19:00"),
+    services: [
+      { id: "celebration-cake", name: "Celebration cake, 8 inch (pickup)", minutes: 30, price: "45.00" },
+      { id: "pastry-box", name: "Pastry box of 12 (pickup)", minutes: 30, price: "18.00" },
+      { id: "cupcakes", name: "Cupcakes, dozen (pickup)", minutes: 30, price: "22.00" },
+    ],
+  },
 ];
+
+/** The UTC instant of a business-local date and time. */
+export function zonedToUtc(date: string, time: string, timezone: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(new Date(guess));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  const asLocal = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return guess - (asLocal - guess);
+}
 
 const holds = new Map<string, Hold>();
 const bookings = new Map<string, Booking>();
@@ -298,6 +338,11 @@ export function getBooking(id: string): Booking | undefined {
 export function bookingByOrder(orderId: string): Booking | undefined {
   for (const bk of bookings.values()) if (bk.orderId === orderId) return bk;
   return undefined;
+}
+
+export function bookingsForSessions(sessionIds: string[]): Booking[] {
+  const set = new Set(sessionIds);
+  return [...bookings.values()].filter((b) => set.has(b.sessionId)).sort((a, z) => z.createdAt - a.createdAt);
 }
 
 export function listBookings(businessId?: string): Booking[] {

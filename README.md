@@ -8,7 +8,7 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 
 > Live demo: _added once deployed_ · Video: _added once published_
 
-![Agent Pay: your phone, the two agents talking, and the business owner's phone](docs/screenshot.jpg)
+![Agent Pay: ask your agent, it agrees the booking with the business, you approve one PayPal payment](docs/screenshot.jpg)
 
 ## What happens in one booking
 
@@ -17,7 +17,16 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 3. **Approve.** Your agent brings the order back to you as a ticket: service, time, price and cancellation policy, with a PayPal button. You approve in PayPal.
 4. **Booked.** The server captures the payment. Only when PayPal says the capture is `COMPLETED`, for exactly the held service's amount and currency, does the booking exist. Both agents are told; the business's ledger updates live.
 
-Every message between the agents and every PayPal call appears live in the middle panel ("the wire"), so you can watch the deal being made.
+Under each answer, a "Worked with ..." line opens the steps your agent took: who it messaged, what the business checked and held, and every PayPal call.
+
+## What you can do in the app
+
+- **Chat with your agent** to book a service or buy something for pickup. Your chats stay in the sidebar.
+- **Approve or ignore** each payment. A held time lasts 15 minutes; nothing is charged unless you approve.
+- **Bookings**: everything you paid for, with the reference, and **Cancel** for a full PayPal refund while the business's free cancellation window is open.
+- **Spending limit**: the most your agent may ask you to pay at once.
+
+The businesses are simulated for now (a salon, a physio clinic, a cooking school and a bakery). The business side, where real businesses sign up and connect their own PayPal, comes next.
 
 ## Safety is in the code, not the prompt
 
