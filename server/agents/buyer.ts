@@ -5,7 +5,9 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { requestApproval, session } from "../commerce.ts";
 import { emit } from "../events.ts";
-import { BUSINESSES, type Booking } from "../store.ts";
+import { getBusiness, liveBusinesses, type Booking } from "../store.ts";
+
+const pinnedName = (id?: string) => (id ? getBusiness(id)?.name : undefined);
 import { askSecretary, noteForSecretary } from "./secretary.ts";
 import { aiMode, runAgent, tool } from "./loop.ts";
 import { mockBuyerTurn, mockAfterPayment } from "./mock.ts";
@@ -14,6 +16,7 @@ const SYSTEM = [
   "You are the customer's personal AI assistant. You book appointments and classes for them with businesses that run an AI Secretary.",
   "",
   "How you work:",
+  "- Businesses sell appointments (a time slot) or pickup items (order ahead, collect at a set time).",
   "- Use find_businesses to choose a business, then message_business to talk to its Secretary. Ask it for services, prices and free times; do not guess them.",
   "- Ask the Secretary to hold the time that best fits what the customer asked, under the customer's name, and to create the payment.",
   "- If you do not know the customer's name, ask them before holding a time.",
@@ -28,11 +31,12 @@ const SYSTEM = [
 const histories = new Map<string, Anthropic.Beta.BetaMessageParam[]>();
 const busy = new Set<string>();
 
-function findBusinesses(query: string) {
+function findBusinesses(query: string, pinned?: string) {
   const words = query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
-  const scored = BUSINESSES.map((b) => {
+  const scored = liveBusinesses().map((b) => {
     const hay = [b.name, b.category, b.city, b.about, ...b.services.map((s) => s.name)].join(" ").toLowerCase();
-    return { b, score: words.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0) };
+    const score = words.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0) + (b.id === pinned ? 100 : 0);
+    return { b, score };
   }).sort((a, z) => z.score - a.score);
   const hits = scored.filter((x) => x.score > 0);
   return (hits.length ? hits : scored).map(({ b }) => ({
@@ -42,7 +46,9 @@ function findBusinesses(query: string) {
     city: b.city,
     timezone: b.timezone,
     about: b.about,
-    services: b.services.map((s) => `${s.name}: ${s.minutes} min, USD ${s.price}`),
+    sells: b.services.map((s) =>
+      s.kind === "pickup" ? `${s.name} (order ahead, pick up): USD ${s.price}` : `${s.name} (${s.minutes} min appointment): USD ${s.price}`,
+    ),
     cancellation_policy: b.policy,
   }));
 }
@@ -53,7 +59,7 @@ function toolsFor(sessionId: string) {
       name: "find_businesses",
       description: "Search businesses that accept agent bookings, by what the customer wants (service, kind of business, city).",
       schema: z.strictObject({ query: z.string() }),
-      run: ({ query }) => ({ businesses: findBusinesses(query) }),
+      run: ({ query }) => ({ businesses: findBusinesses(query, session(sessionId).pinnedBusinessId).slice(0, 8) }),
     }),
     tool({
       name: "message_business",
@@ -92,7 +98,11 @@ export async function buyerTurn(sessionId: string, text: string): Promise<string
       const today = new Date().toISOString().slice(0, 10);
       history.push({
         role: "user",
-        content: `[Today is ${today} (UTC). Spending limit: USD ${s.budget.toFixed(2)}]\n${text.slice(0, 2000)}`,
+        content: `[Today is ${today} (UTC). Spending limit: USD ${s.budget.toFixed(2)}${
+          pinnedName(s.pinnedBusinessId)
+            ? `. The customer opened ${pinnedName(s.pinnedBusinessId)}'s own link (business_id ${s.pinnedBusinessId}); use that business unless they ask for another`
+            : ""
+        }]\n${text.slice(0, 2000)}`,
       });
       const r = await runAgent({
         system: SYSTEM,

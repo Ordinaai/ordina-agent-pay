@@ -20,6 +20,8 @@ function systemFor(b: Business): string {
     `About: ${b.about}`,
     `Opening hours (${b.timezone}): ${hours}.`,
     `Cancellation policy: ${b.policy}`,
+    b.notes ? `Notes from the owner, follow them: ${b.notes}` : "",
+    "You sell two kinds of things: appointments (hold a start time) and pickup items (hold a pickup time; the customer collects then).",
     "",
     "You are talking to another AI agent that acts for a customer, not to the customer directly.",
     "Be brief and exact. Use the tools for every fact about services, prices and free times; never guess them.",
@@ -36,14 +38,17 @@ function toolsFor(b: Business, sessionId: string) {
   return [
     tool({
       name: "list_services",
-      description: "The services this business offers, with duration in minutes and price in USD.",
+      description: "What this business sells: appointments (with length in minutes) and pickup items, with price in USD.",
       schema: z.strictObject({}),
-      run: () => ({ currency: b.currency, services: b.services }),
+      run: () => ({
+        currency: b.currency,
+        items: b.services.map((s) => ({ service_id: s.id, kind: s.kind, name: s.name, minutes: s.kind === "appointment" ? s.minutes : null, price: s.price })),
+      }),
     }),
     tool({
       name: "check_availability",
       description:
-        "Free start times for one service on one date (YYYY-MM-DD, business local time). Bookable up to 14 days ahead.",
+        "Free start times (appointments) or pickup times (pickup items) for one item on one date (YYYY-MM-DD, business local time). Up to 14 days ahead.",
       schema: z.strictObject({ service_id: z.string(), date: z.string() }),
       run: ({ service_id, date }) => {
         const slots = availability(b.id, service_id, date);

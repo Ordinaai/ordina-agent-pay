@@ -70,9 +70,11 @@ function pickDate(b: Business, lower: string, svcId: string): string | undefined
 export async function mockSecretaryTurn(b: Business, _sessionId: string, message: string, tools: AgentTool[], onTool: OnTool): Promise<string> {
   const lower = message.toLowerCase();
   const name = message.match(/booking for ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/)?.[1] ?? "Guest";
-  const services = (await call(tools, "list_services", {}, onTool)).services as Business["services"];
-  const svc =
-    services.find((s) => s.name.toLowerCase().split(/[^a-z]+/).some((w) => w.length > 3 && lower.includes(w))) ?? services[0];
+  const items = (await call(tools, "list_services", {}, onTool)).items as Array<{ service_id: string; name: string; price: string }>;
+  const score = (name: string) => name.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 3 && lower.includes(w)).length;
+  const hit = [...items].sort((x, y) => score(y.name) - score(x.name))[0];
+  if (!hit) return "Sorry, we have nothing on sale right now.";
+  const svc = { id: hit.service_id, name: hit.name, price: hit.price };
 
   const date = pickDate(b, lower, svc.id);
   if (!date) return `Sorry, ${svc.name} has nothing free in the next week or so.`;

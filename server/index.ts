@@ -1,19 +1,23 @@
 import express, { type Request, type Response } from "express";
-import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterPayment, buyerTurn, BusyError } from "./agents/buyer.ts";
 import { aiMode, MODEL } from "./agents/loop.ts";
-import { cancelDeadline, captureAndConfirm, customerCancel, refundBooking, session, setBudget } from "./commerce.ts";
+import { bizApi } from "./business-api.ts";
+import { cancelDeadline, captureAndConfirm, customerCancel, session, setBudget } from "./commerce.ts";
 import { eventsFor, subscribe, type WireEvent } from "./events.ts";
 import { allowTurn, validSession } from "./guard.ts";
 import { mockApprove, paypalClientId, paypalMode } from "./paypal.ts";
-import { BUSINESSES, bookingsForSessions, getBooking, getBusiness, listBookings } from "./store.ts";
+import { startPayoutClock } from "./payouts.ts";
+import { seedDemoBusinesses } from "./seed.ts";
+import { bookingsForSessions, getBusiness, getBusinessByHandle, liveBusinesses, type Booking } from "./store.ts";
+
+seedDemoBusinesses();
 
 const app = express();
 app.set("trust proxy", 1);
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "64kb" }));
 
 const ip = (req: Request) => req.ip ?? "unknown";
 
@@ -27,15 +31,42 @@ app.get("/api/config", (_req, res) => {
     model: aiMode() === "claude" ? MODEL : null,
     paypal: paypalMode(),
     paypalClientId: paypalMode() === "mock" ? null : paypalClientId(),
-    businesses: BUSINESSES.map((b) => ({ id: b.id, name: b.name, category: b.category, city: b.city, timezone: b.timezone })),
+    businesses: liveBusinesses().map((b) => ({ id: b.id, handle: b.handle, name: b.name, city: b.city, timezone: b.timezone })),
   });
 });
 
-app.post("/api/session", (_req, res) => {
-  const id = randomUUID();
-  res.json({ session: id, budget: session(id).budget });
+// ---------- a business's own link ----------
+app.get("/api/b/:handle", (req, res) => {
+  const b = getBusinessByHandle(req.params.handle);
+  if (!b || b.status === "setup") {
+    res.status(404).json({ error: "No business at this link." });
+    return;
+  }
+  res.json({
+    business: {
+      id: b.id,
+      name: b.name,
+      category: b.category,
+      city: b.city,
+      about: b.about,
+      live: b.status === "live",
+      sells: b.services.map((s) => ({ name: s.name, kind: s.kind, price: s.price, minutes: s.kind === "appointment" ? s.minutes : null })),
+    },
+  });
 });
 
+app.post("/api/pin", (req, res) => {
+  const { session: sid, businessId } = req.body ?? {};
+  const b = typeof businessId === "string" ? getBusiness(businessId) : undefined;
+  if (!validSession(sid) || !b || b.status !== "live") {
+    res.status(400).json({ error: "Bad request" });
+    return;
+  }
+  session(sid).pinnedBusinessId = b.id;
+  res.json({ ok: true });
+});
+
+// ---------- the customer's chat ----------
 app.post("/api/budget", (req, res) => {
   const { session: sid, budget } = req.body ?? {};
   if (!validSession(sid) || typeof budget !== "number" || !Number.isFinite(budget)) {
@@ -45,18 +76,15 @@ app.post("/api/budget", (req, res) => {
   res.json({ budget: setBudget(sid, budget).budget });
 });
 
-function sse(res: Response, backlog: WireEvent[], channel: `s:${string}` | `b:${string}`, req: Request) {
+function sse(res: Response, backlog: WireEvent[], channel: `s:${string}`, req: Request) {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
     "X-Accel-Buffering": "no",
   });
-  // The owner's stream never carries session ids: a session id is what lets
-  // a browser capture its own payment.
-  const strip = (e: WireEvent) => (channel.startsWith("b:") ? { ...e, sessionId: "" } : e);
-  for (const e of backlog) res.write(`data: ${JSON.stringify(strip(e))}\n\n`);
-  const off = subscribe(channel, (e) => res.write(`data: ${JSON.stringify(strip(e))}\n\n`));
+  for (const e of backlog) res.write(`data: ${JSON.stringify(e)}\n\n`);
+  const off = subscribe(channel, (e) => res.write(`data: ${JSON.stringify(e)}\n\n`));
   const ping = setInterval(() => res.write(": ping\n\n"), 20_000);
   req.on("close", () => {
     off();
@@ -85,15 +113,14 @@ app.post("/api/chat", async (req, res) => {
     return;
   }
   try {
-    const reply = await buyerTurn(sid, text.trim().slice(0, 2000));
-    res.json({ reply });
+    res.json({ reply: await buyerTurn(sid, text.trim().slice(0, 2000)) });
   } catch (err) {
     if (err instanceof BusyError) {
       res.status(409).json({ error: err.message });
       return;
     }
     console.error("chat failed", err);
-    res.status(502).json({ error: "The assistant could not answer just now. Please try again." });
+    res.status(502).json({ error: "Your agent could not answer just now. Please try again." });
   }
 });
 
@@ -119,30 +146,40 @@ app.post("/api/pay/capture", async (req, res) => {
       return;
     }
     const reply = await afterPayment(sid, out.booking);
-    res.json({ booking: out.booking, reply });
+    res.json({ booking: customerView(out.booking), reply });
   } catch (err) {
     console.error("capture failed", err);
     res.status(502).json({ error: "Could not reach PayPal. Nothing was booked." });
   }
 });
 
-// ---------- the customer's own bookings, across their chats ----------
+// ---------- the customer's bookings, across their chats ----------
 function sessionList(raw: unknown): string[] {
   const list = (Array.isArray(raw) ? raw : String(raw ?? "").split(",")).map(String);
   return list.filter(validSession).slice(0, 100);
 }
 
-function customerView(bk: ReturnType<typeof bookingsForSessions>[number]) {
+function customerView(bk: Booking) {
   const b = getBusiness(bk.businessId)!;
-  const { sessionId: _s, ...rest } = bk;
   return {
-    ...rest,
+    id: bk.id,
+    ref: bk.ref,
     chatId: bk.sessionId,
+    kind: bk.kind,
+    serviceName: bk.serviceName,
+    date: bk.date,
+    time: bk.time,
+    amount: bk.amount,
+    currency: bk.currency,
+    status: bk.status,
+    cancelledBy: bk.cancelledBy,
+    refunded: bk.refunded,
     businessName: b.name,
     city: b.city,
     timezone: b.timezone,
     policy: b.policy,
     cancelUntil: cancelDeadline(bk),
+    createdAt: bk.createdAt,
   };
 }
 
@@ -169,55 +206,18 @@ app.post("/api/bookings/cancel", async (req, res) => {
   }
 });
 
-app.get("/api/owner/:businessId", (req, res) => {
-  const b = getBusiness(req.params.businessId);
-  if (!b) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  res.json({
-    business: { id: b.id, name: b.name, city: b.city, timezone: b.timezone, services: b.services, policy: b.policy },
-    bookings: listBookings(b.id).map(({ sessionId: _s, ...rest }) => rest),
-  });
-});
+// ---------- the business owner ----------
+app.use("/api/biz", bizApi);
 
-app.get("/api/owner/:businessId/events", (req, res) => {
-  const b = getBusiness(req.params.businessId);
-  if (!b) {
-    res.status(404).end();
-    return;
-  }
-  sse(res, [], `b:${b.id}`, req);
-});
-
-app.post("/api/owner/refund", async (req, res) => {
-  const { bookingId, businessId } = req.body ?? {};
-  const bk = typeof bookingId === "string" ? getBooking(bookingId) : undefined;
-  if (!bk || bk.businessId !== businessId) {
-    res.status(404).json({ error: "No such booking." });
-    return;
-  }
-  try {
-    const out = await refundBooking(bk.id);
-    if (!out.ok) {
-      res.status(422).json({ error: out.reason });
-      return;
-    }
-    const { sessionId: _s, ...booking } = out.booking;
-    res.json({ booking });
-  } catch (err) {
-    console.error("refund failed", err);
-    res.status(502).json({ error: "Could not reach PayPal." });
-  }
-});
-
-// The built web app.
+// ---------- the built web app ----------
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, "../dist");
 if (existsSync(dist)) {
   app.use(express.static(dist, { index: false, maxAge: "1h" }));
   app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
+
+if (process.env.NODE_ENV !== "test") startPayoutClock();
 
 const port = Number(process.env.PORT ?? 8787);
 app.listen(port, () => {
