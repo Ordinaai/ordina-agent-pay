@@ -246,8 +246,15 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
 type Result = { ok: true; booking: Booking } | { ok: false; reason: string };
 
 export const refundableCents = (bk: Booking) => toCents(bk.amount) - toCents(bk.refunded);
-/** Refunds go through Ordina only while PayPal still holds the money. */
-export const canRefund = (bk: Booking) => bk.releaseStatus === "held" && refundableCents(bk) > 0;
+/**
+ * PayPal's own limit: a capture can be refunded for 180 days. While PayPal holds
+ * the money the refund comes out of it; after release it comes out of the
+ * business's own PayPal balance (founder, 11 Nov 2026). Ordina holds nothing either way.
+ */
+export const REFUND_WINDOW_MS = 180 * 86_400_000;
+export const refundOpenUntil = (bk: Booking) => bk.createdAt + REFUND_WINDOW_MS;
+export const canRefund = (bk: Booking, now = Date.now()) =>
+  refundableCents(bk) > 0 && now < refundOpenUntil(bk) && bk.releaseStatus !== "releasing";
 /** What the business will get when the money is released (PayPal's net, less refunds). */
 export const businessGetsCents = (bk: Booking) => {
   if (bk.releaseStatus === "none") return 0;
@@ -259,9 +266,10 @@ export const businessGetsCents = (bk: Booking) => {
   return Math.max(0, Math.round(toCents(bk.netAmount) * share));
 };
 
-async function refund(bk: Booking, cents: number, by: "customer" | "business"): Promise<Result> {
-  if (bk.releaseStatus !== "held") {
-    return { ok: false, reason: "PayPal has already released this money to the business. Any refund is settled directly between you." };
+async function refund(bk: Booking, cents: number, by: "customer" | "business", now = Date.now()): Promise<Result> {
+  if (bk.releaseStatus === "releasing") return { ok: false, reason: "PayPal is releasing this payment right now. Try again in a minute." };
+  if (now >= refundOpenUntil(bk)) {
+    return { ok: false, reason: "PayPal refunds are possible for 180 days after payment, and this one is older. Settle it directly with the customer." };
   }
   if (!Number.isInteger(cents) || cents <= 0) return { ok: false, reason: "Enter an amount above zero." };
   if (cents > refundableCents(bk)) return { ok: false, reason: `At most $${fromCents(refundableCents(bk))} can still be refunded.` };
@@ -292,10 +300,10 @@ async function refund(bk: Booking, cents: number, by: "customer" | "business"): 
   if (res.status !== "COMPLETED" && res.status !== "PENDING") return { ok: false, reason: `PayPal answered ${res.status}. Nothing changed.` };
   addRefund({ id: res.id, bookingId: bk.id, amount: res.amount, status: res.status, by });
   const refunded = toCents(bk.refunded) + toCents(res.amount);
-  const updated = updateBooking(bk.id, {
-    refunded: fromCents(refunded),
-    release_status: refunded >= toCents(bk.amount) ? "none" : "held",
-  });
+  // While held, a full refund leaves nothing to release. After release, the money
+  // came from the business's own PayPal balance and the release itself stands.
+  const releaseStatus = bk.releaseStatus === "held" && refunded >= toCents(bk.amount) ? "none" : bk.releaseStatus;
+  const updated = updateBooking(bk.id, { refunded: fromCents(refunded), release_status: releaseStatus });
   emit({
     sessionId: bk.sessionId,
     businessId: b.id,

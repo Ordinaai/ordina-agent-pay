@@ -127,7 +127,7 @@ export function BusinessApp() {
       <aside className="side" aria-label="Navigation">
         <div className="side-top">
           <span className="brand">
-            <Mark /> Agent Pay <em className="for">Business</em>
+            <Mark /> Ordina <em className="for">Agent Checkout</em>
           </span>
         </div>
         <nav className="side-nav">
@@ -232,7 +232,7 @@ function AuthScreen({ onIn }: { onIn: (b: Biz) => void }) {
     <div className="auth">
       <div className="auth-card">
         <span className="brand">
-          <Mark /> Agent Pay <em className="for">Business</em>
+          <Mark /> Ordina <em className="for">Agent Checkout</em>
         </span>
         <h1>{mode === "signup" ? "Let AI agents book and pay you" : "Welcome back"}</h1>
         <p className="auth-sub">
@@ -276,7 +276,7 @@ function AuthScreen({ onIn }: { onIn: (b: Biz) => void }) {
           </button>
         </form>
         <p className="auth-switch">
-          {mode === "signup" ? "Already have an account? " : "New to Agent Pay? "}
+          {mode === "signup" ? "Already have an account? " : "New to Ordina? "}
           <button
             className="linkish"
             onClick={() => {
@@ -473,7 +473,7 @@ function Bookings() {
     <div className="page">
       <div className="page-inner wide">
         <h2>Bookings</h2>
-        <p className="page-sub">Everything customers' agents booked and paid for. You can refund until PayPal releases the money to you.</p>
+        <p className="page-sub">Everything customers' agents booked and paid for. You can refund any amount for 180 days after payment.</p>
         <div className="tabs">
           {(["upcoming", "past", "cancelled"] as const).map((t) => (
             <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
@@ -556,8 +556,8 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
             )}
           </div>
         )}
-        {!mode && !canMoney && b.status === "confirmed" && b.releaseStatus === "released" && (
-          <span className="brow-note">Released to you. Any refund is settled directly with the customer.</span>
+        {!mode && !canMoney && Number(b.refunded) < Number(b.amount) && b.releaseStatus !== "releasing" && (
+          <span className="brow-note">PayPal refunds close 180 days after payment. Settle anything later directly with the customer.</span>
         )}
       </div>
       {mode && (
@@ -573,7 +573,9 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
                 ? `At most $${b.refundable}.`
                 : mode === "cancel"
                   ? `Up to $${b.refundable}. Enter 0 to keep it all, for example for a no-show.`
-                  : `Up to $${b.refundable}. Comes out of the money PayPal holds for you.`}
+                  : b.releaseStatus === "released"
+                    ? `Up to $${b.refundable}. PayPal has released this payment, so the refund comes out of your PayPal balance.`
+                    : `Up to $${b.refundable}. Comes out of the money PayPal holds for you.`}
             </span>
           </label>
           <div className="brow-form-actions">
@@ -848,7 +850,7 @@ function CancelSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) 
     <Section
       id="cancelHours"
       title="Cancellations"
-      sub="Customers can cancel for a full refund up to this many hours before. After that, it's your call: you can still refund any amount until PayPal releases the money to you."
+      sub="Customers can cancel for a full refund up to this many hours before. After that, it's your call: you can still refund any amount, for up to 180 days after payment."
       need={me.setupErrors.cancelHours}
     >
       <form

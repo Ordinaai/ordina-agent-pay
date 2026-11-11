@@ -212,14 +212,30 @@ describe("rule 6: only businesses PayPal can pay", () => {
 });
 
 describe("rule 7: release after the booking, counted only on PayPal's word", () => {
-  it("holds until due, releases after, then refunds through Ordina stop", async () => {
-    const { s, booking } = await book("My name is Ada, wash and style please");
+  it("holds until due, then releases", async () => {
+    const { booking } = await book("My name is Ada, wash and style please");
     await runReleases({ now: booking.releaseDueAt - 1 });
     expect(store.getBooking(booking.id)!.releaseStatus).toBe("held");
     await runReleases({ now: booking.releaseDueAt + 1 });
     expect(store.getBooking(booking.id)!).toMatchObject({ releaseStatus: "released", releasedAt: expect.any(Number) });
-    expect((await commerce.businessRefund("lumen-hair", booking.id, "5")).ok).toBe(false);
+  });
+});
+
+describe("refunds after release (founder, 11 Nov): up to 180 days, from the business's PayPal", () => {
+  it("the owner can still refund after release; the release stands; the customer's free window is over", async () => {
+    const { s, booking } = await book("My name is Ada, wash and style please");
+    await runReleases({ now: booking.releaseDueAt + 1 });
+    const r = await commerce.businessRefund("lumen-hair", booking.id, "5");
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.booking).toMatchObject({ refunded: "5.00", releaseStatus: "released" });
     expect((await commerce.customerCancel([s], booking.id, 0)).ok).toBe(false);
+  });
+
+  it("refuses refunds 180 days after payment", async () => {
+    const { booking } = await book("My name is Ada, wash and style please");
+    store.updateBooking(booking.id, { created_at: Date.now() - commerce.REFUND_WINDOW_MS - 1 });
+    const r = await commerce.businessRefund("lumen-hair", booking.id, "5");
+    expect(r).toMatchObject({ ok: false, reason: expect.stringMatching(/180 days/) });
   });
 
   it("a fully refunded booking has nothing to release", async () => {

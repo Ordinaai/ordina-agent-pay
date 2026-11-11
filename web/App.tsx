@@ -238,7 +238,7 @@ export function App({ handle }: { handle?: string }) {
       <aside className="side" aria-label="Navigation">
         <div className="side-top">
           <span className="brand">
-            <Mark /> Agent Pay
+            <Mark /> Ordina
           </span>
         </div>
         <button className="side-new" onClick={() => go({ name: "chat", id: null })}>
@@ -262,7 +262,7 @@ export function App({ handle }: { handle?: string }) {
           ))}
         </div>
         <a className="side-biz" href="/business">
-          <Icon d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" /> Agent Pay for businesses
+          <Icon d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" /> Ordina for businesses
         </a>
         <div className="side-foot">
           <span className="me">G</span>
@@ -280,7 +280,7 @@ export function App({ handle }: { handle?: string }) {
             <Icon d="M4 7h16M4 12h16M4 17h16" />
           </button>
           <span className="top-title">
-            {view.name === "bookings" ? "Bookings" : view.name === "settings" ? "Spending limit" : "Agent Pay"}
+            {view.name === "bookings" ? "Bookings" : view.name === "settings" ? "Spending limit" : "Your agent"}
           </span>
           {config && (
             <span className="env" title="Test mode: no real money moves">

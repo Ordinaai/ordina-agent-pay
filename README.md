@@ -1,4 +1,4 @@
-# Agent Pay
+# Ordina Agent Checkout
 
 **Your AI agent books it. You approve the payment.**
 
@@ -11,7 +11,7 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 
 > Live demo: _added once deployed_ · Video: _added once published_
 
-![Agent Pay: ask your agent, it agrees the booking with the business, you approve one PayPal payment](docs/screenshot.jpg)
+![Ordina Agent Checkout: ask your agent, it agrees the booking with the business, you approve one PayPal payment](docs/screenshot.jpg)
 
 ## The customer app (`/`)
 
@@ -26,7 +26,7 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 - **Sign up** with your business name, kind, city, email and password.
 - **Setup:** what you sell (appointments that block your calendar, or pickup items with a daily limit), opening hours, a free-cancellation window, and **Connect PayPal**. **Go live** stays grey until all four are done; each missing piece is named at its own field. PayPal itself must confirm your account can take payments.
 - **Your link** (`/b/<handle>`): share it anywhere; it opens a customer's agent already talking to your Secretary. Live businesses are also found by every customer's agent.
-- **Bookings:** what the customer paid, PayPal's fee, what you'll receive, and when PayPal releases it. **Refund** any amount, or **Cancel** with a refund you choose (0 for a no-show), until the money is released.
+- **Bookings:** what the customer paid, PayPal's fee, what you'll receive, and when PayPal releases it. **Refund** any amount, or **Cancel** with a refund you choose (0 for a no-show), for up to 180 days after payment: from the money PayPal holds, or after release from your own PayPal balance.
 - **Overview:** sales, money PayPal holds for you, money released to your PayPal, refunds. **Pause** any time.
 
 How the money works: [docs/BUSINESS_SIDE.md](docs/BUSINESS_SIDE.md).

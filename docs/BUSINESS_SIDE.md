@@ -36,11 +36,11 @@ marketplace product (Multiparty) instead of through Ordina's own PayPal account.
   per sale today; a fee would be a PayPal platform fee on the order (`PLATFORM_FEE_PERCENT`, 0).
 - **Customers:** identified by PayPal (the verified payer on the capture), and protected by PayPal's buyer
   protection.
-- **Refunds while PayPal holds the money:**
+- **Refunds, for 180 days after payment** (PayPal's own limit):
   - the **customer** may cancel inside the business's free-cancellation window for a full refund;
   - the **owner** may cancel or refund any amount they choose, up to what is left.
   Refunds are made on the business's behalf, on the business's own PayPal capture.
-- **After release:** no refunds through Ordina; anything later is between the owner and the customer.
+- While PayPal holds the money, a refund comes out of it. **After release, the owner can still refund**; the money comes out of the business's own PayPal balance (founder, 11 Nov 2026). Ordina holds nothing either way. After 180 days, refunds are settled directly.
 - A booking fully refunded before release has nothing to release.
 
 ## Why this way
