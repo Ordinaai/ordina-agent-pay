@@ -64,6 +64,10 @@ function need(req: Request, res: Response): Business | null {
 
 const ip = (req: Request) => req.ip ?? "unknown";
 
+bizApi.get("/cities", (_req, res) => {
+  res.json({ cities: Object.keys(CITIES) });
+});
+
 // ---------- sign-up and sign-in ----------
 bizApi.post("/signup", async (req, res) => {
   if (!allowAuthTry(ip(req))) {

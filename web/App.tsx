@@ -1,5 +1,6 @@
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Icon, Mark } from "./ui.tsx";
 
 // ---------- shared shapes ----------
 type WireEvent = {
@@ -43,12 +44,24 @@ type MyBooking = {
   time: string;
   amount: string;
   currency: string;
-  status: "confirmed" | "refund_pending" | "refunded";
+  status: "confirmed" | "cancelled";
+  cancelledBy: "customer" | "business" | null;
+  refunded: string;
+  kind: "appointment" | "pickup";
   policy: string;
   cancelUntil: number | null;
   createdAt: number;
 };
 type Chat = { id: string; title: string; at: number };
+type Pinned = {
+  id: string;
+  name: string;
+  category: string;
+  city: string;
+  about: string;
+  live: boolean;
+  sells: Array<{ name: string; kind: "appointment" | "pickup"; price: string; minutes: number | null }>;
+};
 type View = { name: "chat"; id: string | null } | { name: "bookings" } | { name: "settings" };
 
 const SUGGESTIONS = [
@@ -182,8 +195,9 @@ function buildTurns(events: WireEvent[], biz: (id?: string) => string): Turn[] {
 }
 
 // ---------- app ----------
-export function App() {
+export function App({ handle }: { handle?: string }) {
   const [config, setConfig] = useState<Config | null>(null);
+  const [pinned, setPinned] = useState<Pinned | null | undefined>(handle ? undefined : null);
   const [chats, setChats] = useStored<Chat[]>("ap-chats", []);
   const [limit, setLimit] = useStored<number>("ap-limit", 50);
   const [view, setView] = useState<View>({ name: "chat", id: null });
@@ -196,11 +210,24 @@ export function App() {
       .then((r) => r.json())
       .then(setConfig)
       .catch(() => setConfig(null));
-  }, []);
+    if (handle) {
+      fetch(`/api/b/${encodeURIComponent(handle)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => setPinned(j?.business ?? null))
+        .catch(() => setPinned(null));
+    }
+  }, [handle]);
 
   const go = (v: View) => {
     setView(v);
-    if (v.name === "chat") setChatKey(v.id ?? `new-${Date.now()}`);
+    if (v.name === "chat") {
+      setChatKey(v.id ?? `new-${Date.now()}`);
+      if (!v.id && pinned) {
+        // A new chat from the menu is a general one, not the business's link.
+        setPinned(null);
+        history.replaceState(null, "", "/");
+      }
+    }
     setDrawer(false);
   };
   const chatId = view.name === "chat" ? view.id : null;
@@ -233,6 +260,9 @@ export function App() {
             </button>
           ))}
         </div>
+        <a className="side-biz" href="/business">
+          <Icon d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" /> Agent Pay for businesses
+        </a>
         <div className="side-foot">
           <span className="me">G</span>
           <div>
@@ -265,6 +295,8 @@ export function App() {
           <ChatView
             key={chatKey}
             chatId={view.id}
+            pinned={view.id ? null : pinned}
+            handleMissing={!!handle && pinned === null && !view.id}
             config={config}
             limit={limit}
             onCreate={(id, title) => {
@@ -284,12 +316,16 @@ export function App() {
 // ---------- chat ----------
 function ChatView({
   chatId,
+  pinned,
+  handleMissing,
   config,
   limit,
   onCreate,
   openBookings,
 }: {
   chatId: string | null;
+  pinned?: Pinned | null;
+  handleMissing?: boolean;
   config: Config | null;
   limit: number;
   onCreate: (id: string, title: string) => void;
@@ -322,6 +358,7 @@ function ChatView({
     setError(null);
     try {
       await post("/api/budget", { session: id, budget: limit });
+      if (pinned?.live && turns.length === 0) await post("/api/pin", { session: id, businessId: pinned.id });
       await post("/api/chat", { session: id, text: t });
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't send. Try again.");
@@ -334,13 +371,33 @@ function ChatView({
     return (
       <div className="home">
         <div className="home-inner">
-          <Mark big />
-          <h1>What can I book or buy for you?</h1>
-          <p className="home-sub">I find the business, agree the details with its AI Secretary, and bring you one PayPal payment to approve.</p>
-          <Composer onSend={send} busy={busy} autoFocus />
+          {pinned ? (
+            <>
+              <span className="pin-badge">{pinned.name.slice(0, 1)}</span>
+              <h1>Book with {pinned.name}</h1>
+              <p className="home-sub">
+                {pinned.category} in {pinned.city}. {pinned.about || "Tell me what you'd like and when; I'll sort it out with their Secretary."}
+              </p>
+              {!pinned.live && <p className="err">{pinned.name} isn't taking bookings right now.</p>}
+            </>
+          ) : (
+            <>
+              <Mark big />
+              <h1>What can I book or buy for you?</h1>
+              <p className="home-sub">
+                {handleMissing
+                  ? "That link doesn't lead to a business taking bookings, but I can find you another."
+                  : "I find the business, agree the details with its AI Secretary, and bring you one PayPal payment to approve."}
+              </p>
+            </>
+          )}
+          <Composer onSend={send} busy={busy || (pinned ? !pinned.live : false)} autoFocus />
           <div className="suggest">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => send(s)} disabled={busy}>
+            {(pinned
+              ? pinned.sells.slice(0, 4).map((x) => `${x.kind === "pickup" ? "Order" : "Book"} ${x.name.toLowerCase()} ($${x.price})`)
+              : SUGGESTIONS
+            ).map((s) => (
+              <button key={s} onClick={() => send(s)} disabled={busy || (pinned ? !pinned.live : false)}>
                 {s}
               </button>
             ))}
@@ -711,7 +768,10 @@ function BookingsView({ chats, openChat }: { chats: Chat[]; openChat: (id: strin
             </div>
             <div className="bk-side">
               <span className="bk-amt">${b.amount}</span>
-              <span className="bk-note">{b.status === "refunded" ? "Refunded" : "Refund pending"}</span>
+              <span className="bk-note">
+                {b.cancelledBy === "business" ? "Cancelled by the business" : "You cancelled"}
+                {Number(b.refunded) > 0 ? `, $${b.refunded} refunded` : ", no refund"}
+              </span>
             </div>
             {msg?.id === b.id && <p className="bk-msg">{msg.text}</p>}
           </div>
@@ -754,15 +814,3 @@ function LimitView({ limit, setLimit }: { limit: number; setLimit: (n: number) =
   );
 }
 
-// ---------- tiny UI bits ----------
-function Icon({ d, className }: { d: string; className?: string }) {
-  return (
-    <svg className={`ic ${className ?? ""}`} viewBox="0 0 24 24" width="18" height="18" aria-hidden>
-      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function Mark({ big, small }: { big?: boolean; small?: boolean }) {
-  return <span className={`mark ${big ? "big" : ""} ${small ? "small" : ""}`} aria-hidden />;
-}

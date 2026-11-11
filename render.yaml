@@ -2,20 +2,32 @@ services:
   - type: web
     name: ordina-agent-pay
     runtime: node
-    plan: free
+    plan: starter # paid: needed for the persistent disk
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
       - key: PAYPAL_ENV
         value: sandbox
+      - key: PAYOUT_DELAY_HOURS
+        value: "24"
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: DEMO_PAYOUT_EMAIL
         sync: false
       - key: DAILY_TURN_CAP
         value: "400"
