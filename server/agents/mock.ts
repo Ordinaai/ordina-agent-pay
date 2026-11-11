@@ -46,9 +46,11 @@ export async function mockBuyerTurn(sessionId: string, text: string, tools: Agen
   const pick = list[0];
   const msg = `Hi, I'm booking for ${name}. They'd like: ${ask.replace(/\s+/g, " ").trim().slice(0, 200)}. What's your best match and earliest fitting time? Please hold it and create the payment.`;
   const res = await call(tools, "message_business", { business_id: pick.business_id, message: msg }, onTool);
-  const payment = res.payment as { order_id: string; amount: string; service: string; date: string; time: string } | undefined;
-  if (!payment) return `I checked with ${pick.name}. ${res.reply as string}`;
-  const approval = await call(tools, "request_payment_approval", { order_id: payment.order_id }, onTool);
+  // Only the server's offer is used for facts (rule 8); the Secretary's prose is ignored here.
+  const offer = res.offer as { offer_id: string; price: string; item: string; date: string; time: string } | undefined;
+  if (!offer) return `I checked with ${pick.name}. ${res.reply as string}`;
+  const payment = { amount: offer.price, service: offer.item, date: offer.date, time: offer.time };
+  const approval = await call(tools, "request_payment_approval", { offer_id: offer.offer_id }, onTool);
   if ("error" in approval) {
     return `${pick.name} can do ${payment.service} on ${niceDate(payment.date)} at ${payment.time} for $${payment.amount}, but that's over your $${String(approval.error).match(/limit of USD (\d+)/)?.[1] ?? ""} spending limit, so I haven't sent you a payment. Raise your limit in Settings, or tell me what to change.`;
   }

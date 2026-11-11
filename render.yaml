@@ -19,15 +19,23 @@ services:
         value: /var/data
       - key: PAYPAL_ENV
         value: sandbox
-      - key: PAYOUT_DELAY_HOURS
+      - key: RELEASE_DELAY_HOURS
         value: "24"
+      - key: PLATFORM_FEE_PERCENT
+        value: "0"
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
-      - key: DEMO_PAYOUT_EMAIL
+      - key: PAYPAL_PARTNER_MERCHANT_ID
+        sync: false
+      - key: PAYPAL_BN_CODE
+        sync: false
+      - key: DEMO_SELLER_MERCHANT_ID
+        sync: false
+      - key: DEMO_SELLER_EMAIL
         sync: false
       - key: DAILY_TURN_CAP
         value: "400"

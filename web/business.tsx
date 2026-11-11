@@ -1,5 +1,5 @@
 // The business owner's app (/business): sign up, set up what you sell, go
-// live, see bookings and money, refund or cancel, and get paid out.
+// live, see bookings and the money PayPal holds and releases, refund or cancel.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Icon, Mark } from "./ui.tsx";
 
@@ -18,7 +18,7 @@ type Biz = {
   cancelHours: number | null;
   policy: string;
   hours: Hours;
-  payoutEmail: string | null;
+  paypal: { merchantId: string | null; email: string | null; receivable: boolean; emailConfirmed: boolean; checkedAt: number | null };
   status: "setup" | "live" | "paused";
   services: Item[];
   email: string;
@@ -36,21 +36,23 @@ type Booking = {
   startsAt: number;
   customerName: string;
   payerEmail: string | null;
+  payerName: string | null;
   amount: string;
   paypalFee: string;
+  platformFee: string;
   netAmount: string;
   refunded: string;
   status: "confirmed" | "cancelled";
   cancelledBy: "customer" | "business" | null;
-  payoutStatus: "waiting" | "sending" | "sent" | "paid" | "unclaimed" | "failed" | "none";
-  payoutDueAt: number;
-  payoutAmount: string | null;
-  payoutNote: string | null;
-  payout: string;
+  releaseStatus: "held" | "releasing" | "released" | "failed" | "none";
+  releaseDueAt: number;
+  releaseNote: string | null;
+  releasedAt: number | null;
+  businessGets: string;
   refundable: string;
   refunds: Refund[];
 };
-type Totals = { sales: string; refunded: string; fees: string; waiting: string; inFlight: string; paidOut: string };
+type Totals = { sales: string; refunded: string; fees: string; platformFees: string; held: string; released: string };
 type Page = "overview" | "bookings" | "setup";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -92,8 +94,13 @@ export function BusinessApp() {
       .catch(() => setMe(null));
   }, []);
   useEffect(load, [load]);
+  // Coming back from PayPal: /business?paypal=connected | needs_attention | cancelled
+  const [paypalNotice] = useState(() => new URLSearchParams(location.search).get("paypal"));
   useEffect(() => {
-    if (me && me.status === "setup") setPage("setup");
+    if (paypalNotice) history.replaceState(null, "", "/business");
+  }, [paypalNotice]);
+  useEffect(() => {
+    if (me && (me.status === "setup" || paypalNotice)) setPage("setup");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
 
@@ -176,7 +183,7 @@ export function BusinessApp() {
         </header>
         {page === "overview" && <Overview me={me} demoPayouts={demoPayouts} openSetup={() => go("setup")} openBookings={() => go("bookings")} />}
         {page === "bookings" && <Bookings />}
-        {page === "setup" && <Setup me={me} cities={cities} onSaved={setMe} />}
+        {page === "setup" && <Setup me={me} cities={cities} onSaved={setMe} paypalNotice={paypalNotice} />}
       </main>
     </div>
   );
@@ -231,7 +238,7 @@ function AuthScreen({ onIn }: { onIn: (b: Biz) => void }) {
         <p className="auth-sub">
           {mode === "signup"
             ? "Your own AI Secretary answers customers' agents, takes bookings and orders, and gets you paid through PayPal."
-            : "Sign in to see your bookings and payouts."}
+            : "Sign in to see your bookings and the money PayPal holds for you."}
         </p>
         <form
           onSubmit={(e) => {
@@ -344,12 +351,14 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
 
         <div className="stats">
           <Stat label="Sales" value={usd(data?.totals.sales)} />
-          <Stat label="Waiting to be paid to you" value={usd(data?.totals.waiting)} hint="Paid 24 hours after each booking" />
-          <Stat label="On its way" value={usd(data?.totals.inFlight)} hint="Sent through PayPal" />
-          <Stat label="Paid out" value={usd(data?.totals.paidOut)} hint={me.payoutEmail ? `To ${me.payoutEmail}` : "Add your PayPal email"} />
+          <Stat label="Held by PayPal for you" value={usd(data?.totals.held)} hint="Released 24 hours after each booking" />
+          <Stat label="Released to your PayPal" value={usd(data?.totals.released)} hint={me.paypal.email ?? "Connect PayPal"} />
+          <Stat label="Refunded" value={usd(data?.totals.refunded)} />
         </div>
         <p className="fine">
-          PayPal fees so far {usd(data?.totals.fees)}, refunds {usd(data?.totals.refunded)}. Ordina takes no cut of your sales.
+          Customers pay straight into your PayPal account; PayPal holds each payment until 24 hours after the booking, then releases it to
+          you. PayPal fees so far {usd(data?.totals.fees)}.{" "}
+          {Number(data?.totals.platformFees) > 0 ? `Ordina fees ${usd(data?.totals.platformFees)}.` : "Ordina takes no cut of your sales."}
         </p>
 
         <div className="two">
@@ -406,23 +415,22 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
         {demoPayouts && (
           <section className="card demo">
             <div className="card-head">
-              <h3>Payouts, Sandbox demo</h3>
+              <h3>Release held money, test mode</h3>
             </div>
             <p className="muted-s">
-              Payouts normally go out on their own, 24 hours after each booking. For the PayPal Sandbox demo you can send everything waiting
-              now.
+              PayPal normally releases each payment to you 24 hours after the booking. In test mode you can release everything held now.
             </p>
             <button
               className="btn-line"
-              disabled={running || !Number(data?.totals.waiting)}
+              disabled={running || !Number(data?.totals.held)}
               onClick={async () => {
                 setRunning(true);
-                await api("/api/biz/payouts/run", "POST").catch(() => {});
+                await api("/api/biz/releases/run", "POST").catch(() => {});
                 setRunning(false);
                 load();
               }}
             >
-              {running ? "Sending through PayPal" : "Run payouts now"}
+              {running ? "Asking PayPal" : "Release now"}
             </button>
           </section>
         )}
@@ -442,14 +450,12 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 // ---------- bookings ----------
-const PAYOUT_TEXT: Record<Booking["payoutStatus"], string> = {
-  waiting: "Waiting",
-  sending: "Sending",
-  sent: "Sent, PayPal processing",
-  paid: "Paid out",
-  unclaimed: "Unclaimed at PayPal",
-  failed: "Payout failed",
-  none: "Nothing to pay out",
+const RELEASE_TEXT: Record<Booking["releaseStatus"], string> = {
+  held: "Held by PayPal",
+  releasing: "PayPal is releasing it",
+  released: "Released to your PayPal",
+  failed: "PayPal could not release it",
+  none: "Nothing to release",
 };
 
 function Bookings() {
@@ -467,7 +473,7 @@ function Bookings() {
     <div className="page">
       <div className="page-inner wide">
         <h2>Bookings</h2>
-        <p className="page-sub">Everything customers' agents booked and paid for. You can refund until a booking is paid out to you.</p>
+        <p className="page-sub">Everything customers' agents booked and paid for. You can refund until PayPal releases the money to you.</p>
         <div className="tabs">
           {(["upcoming", "past", "cancelled"] as const).map((t) => (
             <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
@@ -527,16 +533,17 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
         </span>
         <span className="brow-fine">
           Ref {b.ref} · Paid {usd(b.amount)} · PayPal fee {usd(b.paypalFee)}
+          {Number(b.platformFee) > 0 ? ` · Ordina fee ${usd(b.platformFee)}` : ""}
           {Number(b.refunded) > 0 ? ` · Refunded ${usd(b.refunded)}` : ""}
           {b.status === "cancelled" ? ` · Cancelled by ${b.cancelledBy === "business" ? "you" : "the customer"}` : ""}
         </span>
       </div>
       <div className="brow-side">
-        <span className="brow-amt">{usd(b.payoutStatus === "paid" ? b.payoutAmount : b.payout)}</span>
-        <span className={`payout p-${b.payoutStatus}`}>
-          {b.payoutStatus === "waiting" ? `To you ${when(b.payoutDueAt)}` : PAYOUT_TEXT[b.payoutStatus]}
+        <span className="brow-amt">{usd(b.businessGets)}</span>
+        <span className={`payout p-${b.releaseStatus}`}>
+          {b.releaseStatus === "held" ? `Held by PayPal, released ${when(b.releaseDueAt)}` : RELEASE_TEXT[b.releaseStatus]}
         </span>
-        {b.payoutNote && <span className="brow-note">{b.payoutNote}</span>}
+        {b.releaseNote && <span className="brow-note">{b.releaseNote}</span>}
         {!mode && canMoney && (
           <div className="brow-actions">
             <button className="btn-line sm" onClick={() => open("refund")}>
@@ -549,8 +556,8 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
             )}
           </div>
         )}
-        {!mode && !canMoney && b.status === "confirmed" && b.payoutStatus !== "waiting" && (
-          <span className="brow-note">Paid out. Any refund is settled directly with the customer.</span>
+        {!mode && !canMoney && b.status === "confirmed" && b.releaseStatus === "released" && (
+          <span className="brow-note">Released to you. Any refund is settled directly with the customer.</span>
         )}
       </div>
       {mode && (
@@ -566,7 +573,7 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
                 ? `At most $${b.refundable}.`
                 : mode === "cancel"
                   ? `Up to $${b.refundable}. Enter 0 to keep it all, for example for a no-show.`
-                  : `Up to $${b.refundable}. Comes off what we pay you.`}
+                  : `Up to $${b.refundable}. Comes out of the money PayPal holds for you.`}
             </span>
           </label>
           <div className="brow-form-actions">
@@ -585,13 +592,13 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
 }
 
 // ---------- setup ----------
-function Setup({ me, cities, onSaved }: { me: Biz; cities: string[]; onSaved: (b: Biz) => void }) {
+function Setup({ me, cities, onSaved, paypalNotice }: { me: Biz; cities: string[]; onSaved: (b: Biz) => void; paypalNotice: string | null }) {
   const errs = me.setupErrors;
   const checks = [
     { key: "items", label: "What you sell" },
     { key: "hours", label: "Opening hours" },
     { key: "cancelHours", label: "Cancellations" },
-    { key: "payoutEmail", label: "Getting paid" },
+    { key: "paypal", label: "PayPal connected" },
   ];
   return (
     <div className="page">
@@ -612,7 +619,7 @@ function Setup({ me, cities, onSaved }: { me: Biz; cities: string[]; onSaved: (b
         <ItemsSection me={me} onSaved={onSaved} />
         <HoursSection me={me} onSaved={onSaved} />
         <CancelSection me={me} onSaved={onSaved} />
-        <PaySection me={me} onSaved={onSaved} />
+        <PaySection me={me} onSaved={onSaved} notice={paypalNotice} />
         <NotesSection me={me} onSaved={onSaved} />
       </div>
     </div>
@@ -841,7 +848,7 @@ function CancelSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) 
     <Section
       id="cancelHours"
       title="Cancellations"
-      sub="Customers can cancel for a full refund up to this many hours before. After that, it's your call: you can still refund any amount until you're paid out."
+      sub="Customers can cancel for a full refund up to this many hours before. After that, it's your call: you can still refund any amount until PayPal releases the money to you."
       need={me.setupErrors.cancelHours}
     >
       <form
@@ -859,28 +866,86 @@ function CancelSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) 
   );
 }
 
-function PaySection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) {
-  const [v, setV] = useState(me.payoutEmail ?? "");
-  const s = useSave(onSaved);
-  const err = v.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) ? "Enter the email of your PayPal account." : undefined;
+function PaySection({ me, onSaved, notice }: { me: Biz; onSaved: (b: Biz) => void; notice: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const p = me.paypal;
+  const connected = !!p.merchantId && p.receivable && p.emailConfirmed;
+
+  const connect = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<{ actionUrl: string }>("/api/biz/paypal/connect", "POST");
+      location.href = r.actionUrl;
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+  const checkAgain = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api("/api/biz/paypal/refresh", "POST");
+      const r = await api<{ business: Biz }>("/api/biz/me");
+      onSaved(r.business);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Section
-      id="payoutEmail"
+      id="paypal"
       title="Getting paid"
-      sub="Customers pay through PayPal. Ordina pays you 24 hours after each booking or pickup, to this PayPal account, minus only PayPal's own fee."
-      need={me.setupErrors.payoutEmail}
+      sub="Customers pay straight into your own PayPal account. PayPal holds each payment until 24 hours after the booking or pickup, then releases it to you, so a refund is always possible before then. You pay PayPal's usual fee; Ordina takes no cut."
+      need={me.setupErrors.paypal}
     >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          s.save("/api/biz/profile", { payoutEmail: v.trim() });
-        }}
-      >
-        <Field label="Your PayPal email" error={err ?? s.fields.payoutEmail} hint="If no PayPal account uses it yet, PayPal keeps the money for 30 days so you can sign up and claim it.">
-          <input value={v} onChange={(e) => setV(e.target.value)} type="email" autoComplete="email" />
-        </Field>
-        <SaveBar disabled={!v.trim() || !!err || v.trim().toLowerCase() === (me.payoutEmail ?? "")} busy={s.busy} done={s.done} />
-      </form>
+      {notice === "cancelled" && !connected && <p className="pp-note">You left PayPal before connecting. Nothing changed.</p>}
+      {connected ? (
+        <div className="pp-row ok">
+          <span className="pp-mark" aria-hidden>
+            <b>P</b>
+          </span>
+          <div>
+            <strong>Connected{notice === "connected" ? " just now" : ""}</strong>
+            <span>{p.email}</span>
+          </div>
+          <button className="btn-line sm" onClick={checkAgain} disabled={busy}>
+            {busy ? "Checking" : "Check with PayPal"}
+          </button>
+        </div>
+      ) : p.merchantId ? (
+        <div className="pp-row warn">
+          <span className="pp-mark" aria-hidden>
+            <b>P</b>
+          </span>
+          <div>
+            <strong>Connected, but PayPal can't pay you yet</strong>
+            <span>{me.setupErrors.paypal}</span>
+          </div>
+          <button className="btn-dark sm" onClick={checkAgain} disabled={busy}>
+            {busy ? "Checking" : "Check again"}
+          </button>
+        </div>
+      ) : (
+        <div className="pp-row">
+          <span className="pp-mark" aria-hidden>
+            <b>P</b>
+          </span>
+          <div>
+            <strong>Not connected</strong>
+            <span>You'll sign in to PayPal (or create a free business account) and allow Ordina to take payments for you.</span>
+          </div>
+          <button className="pp-connect" onClick={connect} disabled={busy}>
+            {busy ? "Opening PayPal" : "Connect PayPal"}
+          </button>
+        </div>
+      )}
+      {err && <p className="field-err">{err}</p>}
     </Section>
   );
 }

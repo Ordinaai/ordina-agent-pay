@@ -3,7 +3,7 @@
 // price list and calendar and that hold a time and create the PayPal order.
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { startPayment } from "../commerce.ts";
+import { startPayment, type PaymentOffer } from "../commerce.ts";
 import { emit } from "../events.ts";
 import { addDays, availability, createHold, getBusiness, localNow, weekdayOf, type Business } from "../store.ts";
 import { aiMode, runAgent, tool } from "./loop.ts";
@@ -75,7 +75,7 @@ function toolsFor(b: Business, sessionId: string) {
     tool({
       name: "create_payment",
       description:
-        "Create the PayPal order for a held time, at the listed price. Returns the order id the customer's agent shows its customer.",
+        "Create the payment offer for a held time: a PayPal order at the listed price, paid to this business. The server hands the offer to the customer's agent directly; you only tell it that the offer is ready.",
       schema: z.strictObject({ hold_id: z.string() }),
       run: ({ hold_id }) => startPayment(hold_id, sessionId),
     }),
@@ -85,8 +85,10 @@ function toolsFor(b: Business, sessionId: string) {
 const conversations = new Map<string, Anthropic.Beta.BetaMessageParam[]>();
 
 export type SecretaryReply = {
+  /** What the Secretary said: conversation only, never a fact (rule 8). */
   reply: string;
-  payment?: { order_id: string; amount: string; currency: string; service: string; date: string; time: string };
+  /** The server's payment offer, when one was created this turn: the only fact. */
+  offer?: PaymentOffer;
 };
 
 /** One message from the customer's agent to a business; returns the Secretary's answer. */
@@ -96,12 +98,10 @@ export async function askSecretary(sessionId: string, businessId: string, messag
   const now = localNow(b.timezone);
   emit({ sessionId, businessId, kind: "buyer_to_business", actor: "buyer", title: `To ${b.name}`, detail: message });
 
-  let payment: SecretaryReply["payment"];
+  // The offer comes from the tool's return value (server data), never from the reply text.
+  let offer: PaymentOffer | undefined;
   const capturePayment = (name: string, out: unknown) => {
-    if (name === "create_payment" && out && typeof out === "object" && "order_id" in out) {
-      const o = out as Record<string, string>;
-      payment = { order_id: o.order_id, amount: o.amount, currency: o.currency, service: o.service, date: o.date, time: o.time };
-    }
+    if (name === "create_payment" && out && typeof out === "object" && "offer_id" in out) offer = out as PaymentOffer;
   };
 
   let reply: string;
@@ -132,7 +132,7 @@ export async function askSecretary(sessionId: string, businessId: string, messag
     reply = r.text || "Sorry, I could not finish that. Please ask again.";
   }
   emit({ sessionId, businessId, kind: "business_to_buyer", actor: "secretary", title: `${b.name} replied`, detail: reply });
-  return { reply, payment };
+  return { reply, offer };
 }
 
 /** Tell the Secretary what PayPal said, so its own record of the chat is right. */

@@ -47,6 +47,7 @@ type MyBooking = {
   status: "confirmed" | "cancelled";
   cancelledBy: "customer" | "business" | null;
   refunded: string;
+  paidAs: string | null;
   kind: "appointment" | "pickup";
   policy: string;
   cancelUntil: number | null;
@@ -631,7 +632,11 @@ function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chat
         </div>
       )}
       <p className="pay-fine">
-        {paid ? "Payment confirmed by PayPal." : expired ? "Nothing was charged. Ask me to hold it again." : a.policy}
+        {paid
+          ? `Payment confirmed by PayPal. ${a.businessName} receives it after your booking.`
+          : expired
+            ? "Nothing was charged. Ask me to hold it again."
+            : `Paid to ${a.businessName} through PayPal, with PayPal's buyer protection. ${a.policy}`}
       </p>
       {msg && <p className="pay-fine err">{msg}</p>}
     </div>
@@ -721,7 +726,7 @@ function BookingsView({ chats, openChat }: { chats: Chat[]; openChat: (id: strin
                   {niceDate(b.date)} at {b.time} {cityOf(b.timezone)} time
                 </span>
                 <span className="bk-ref">
-                  Ref {b.ref} · Paid with PayPal ·{" "}
+                  Ref {b.ref} · Paid with PayPal{b.paidAs ? ` as ${b.paidAs}` : ""} ·{" "}
                   <button className="linkish" onClick={() => openChat(b.chatId)}>
                     Open chat
                   </button>

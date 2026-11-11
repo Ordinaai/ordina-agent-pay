@@ -9,7 +9,8 @@ import { cancelDeadline, captureAndConfirm, customerCancel, session, setBudget }
 import { eventsFor, subscribe, type WireEvent } from "./events.ts";
 import { allowTurn, validSession } from "./guard.ts";
 import { mockApprove, paypalClientId, paypalMode } from "./paypal.ts";
-import { startPayoutClock } from "./payouts.ts";
+import { startReleaseClock } from "./payouts.ts";
+import { connectApi, mockPayPalPages } from "./paypal-connect.ts";
 import { seedDemoBusinesses } from "./seed.ts";
 import { bookingsForSessions, getBusiness, getBusinessByHandle, liveBusinesses, type Booking } from "./store.ts";
 
@@ -174,6 +175,7 @@ function customerView(bk: Booking) {
     status: bk.status,
     cancelledBy: bk.cancelledBy,
     refunded: bk.refunded,
+    paidAs: bk.payerEmail, // the customer, as PayPal verified them
     businessName: b.name,
     city: b.city,
     timezone: b.timezone,
@@ -207,7 +209,9 @@ app.post("/api/bookings/cancel", async (req, res) => {
 });
 
 // ---------- the business owner ----------
+app.use("/api/biz/paypal", connectApi);
 app.use("/api/biz", bizApi);
+app.use("/paypal-sandbox-mock", mockPayPalPages);
 
 // ---------- the built web app ----------
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -217,7 +221,7 @@ if (existsSync(dist)) {
   app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
-if (process.env.NODE_ENV !== "test") startPayoutClock();
+if (process.env.NODE_ENV !== "test") startReleaseClock();
 
 const port = Number(process.env.PORT ?? 8787);
 app.listen(port, () => {

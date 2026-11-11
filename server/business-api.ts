@@ -3,9 +3,9 @@
 import express, { type Request, type Response } from "express";
 import { allowAuthTry, checkPassword, endSession, hashPassword, ownerOf, startSession } from "./auth.ts";
 import { CITIES } from "./cities.ts";
-import { businessCancel, businessRefund, canRefund, payoutCents, refundableCents } from "./commerce.ts";
+import { businessCancel, businessGetsCents, businessRefund, canRefund, refundableCents } from "./commerce.ts";
 import { paypalMode } from "./paypal.ts";
-import { runPayouts } from "./payouts.ts";
+import { runReleases } from "./payouts.ts";
 import {
   createBusiness,
   fromCents,
@@ -33,7 +33,9 @@ export function setupErrors(b: Business): Record<string, string> {
   if (!b.services.length) e.items = "Add at least one thing you sell, with a price.";
   if (!Object.values(b.hours).some(Boolean)) e.hours = "Open at least one day a week.";
   if (b.cancelHours === null) e.cancelHours = "Choose how many hours before customers can cancel for free.";
-  if (!b.payoutEmail) e.payoutEmail = "Add the PayPal email you want to be paid to.";
+  if (!b.paypal.merchantId) e.paypal = "Connect your PayPal account so customers can pay you.";
+  else if (!b.paypal.emailConfirmed) e.paypal = "Confirm your email address with PayPal, then check again.";
+  else if (!b.paypal.receivable) e.paypal = "PayPal says this account can't receive payments yet. Finish setting it up at PayPal, then check again.";
   return e;
 }
 
@@ -46,7 +48,7 @@ function bookingView(bk: Booking) {
   return {
     ...bk,
     sessionId: undefined,
-    payout: fromCents(payoutCents(bk)),
+    businessGets: fromCents(businessGetsCents(bk)),
     refundable: canRefund(bk) ? fromCents(refundableCents(bk)) : "0.00",
     refunds: refundsFor(bk.id),
   };
@@ -153,10 +155,6 @@ bizApi.put("/profile", (req, res) => {
     if (!Number.isInteger(n) || n < 0 || n > 168) fields.cancelHours = "Enter whole hours from 0 to 168.";
     else patch.cancelHours = n;
   }
-  if ("payoutEmail" in body) {
-    if (typeof body.payoutEmail !== "string" || !EMAIL.test(body.payoutEmail.trim())) fields.payoutEmail = "Enter the email of your PayPal account.";
-    else patch.payoutEmail = body.payoutEmail.trim().toLowerCase();
-  }
   if ("hours" in body) {
     const hours: Hours = {};
     for (let d = 0; d < 7; d++) {
@@ -251,9 +249,9 @@ bizApi.get("/bookings", (req, res) => {
       sales: sum((bk) => toCents(bk.amount)),
       refunded: sum((bk) => toCents(bk.refunded)),
       fees: sum((bk) => toCents(bk.paypalFee)),
-      waiting: sum((bk) => (bk.payoutStatus === "waiting" ? payoutCents(bk) : 0)),
-      inFlight: sum((bk) => (bk.payoutStatus === "sent" || bk.payoutStatus === "sending" ? payoutCents(bk) : 0)),
-      paidOut: sum((bk) => (bk.payoutStatus === "paid" ? toCents(bk.payoutAmount ?? "0") : 0)),
+      platformFees: sum((bk) => toCents(bk.platformFee)),
+      held: sum((bk) => (bk.releaseStatus === "held" || bk.releaseStatus === "releasing" ? businessGetsCents(bk) : 0)),
+      released: sum((bk) => (bk.releaseStatus === "released" ? businessGetsCents(bk) : 0)),
     },
   });
 });
@@ -280,14 +278,13 @@ bizApi.post("/bookings/:id/refund", async (req, res) => {
   res.json({ booking: bookingView(out.booking) });
 });
 
-/** Sandbox demo only: a judge can't wait 24 hours. */
-bizApi.post("/payouts/run", async (req, res) => {
+/** Sandbox and test mode only: release held money now, because nobody can wait a day in a demo. */
+bizApi.post("/releases/run", async (req, res) => {
   const b = need(req, res);
   if (!b) return;
   if (paypalMode() === "live") {
-    res.status(403).json({ error: "Payouts run on their own schedule." });
+    res.status(403).json({ error: "Releases run on their own schedule." });
     return;
   }
-  const out = await runPayouts({ forceBusinessId: b.id });
-  res.json(out);
+  res.json(await runReleases({ forceBusinessId: b.id }));
 });

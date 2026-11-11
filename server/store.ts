@@ -38,7 +38,14 @@ export type Business = {
   cancelHours: number | null;
   policy: string;
   hours: Hours;
-  payoutEmail: string | null;
+  paypal: {
+    trackingId: string | null;
+    merchantId: string | null;
+    email: string | null;
+    receivable: boolean;
+    emailConfirmed: boolean;
+    checkedAt: number | null;
+  };
   status: BusinessStatus;
   demo: boolean;
   ownerEmail: string | null;
@@ -60,7 +67,8 @@ export type Hold = {
   orderId?: string;
 };
 
-export type PayoutStatus = "waiting" | "sending" | "sent" | "paid" | "unclaimed" | "failed" | "none";
+/** held: PayPal holds it; releasing: asked PayPal; released: PayPal confirmed; none: nothing to release. */
+export type ReleaseStatus = "held" | "releasing" | "released" | "failed" | "none";
 export type Booking = {
   id: string;
   ref: string;
@@ -78,25 +86,31 @@ export type Booking = {
   currency: string;
   orderId: string;
   captureId: string;
+  payeeMerchantId: string;
   paypalFee: string;
+  platformFee: string;
   netAmount: string;
+  payerId: string | null;
   payerName: string | null;
   payerEmail: string | null;
   status: "confirmed" | "cancelled";
   cancelledBy: "customer" | "business" | null;
   refunded: string;
-  refundDebit: string;
-  payoutDueAt: number;
-  payoutStatus: PayoutStatus;
-  payoutAmount: string | null;
-  payoutBatchId: string | null;
-  payoutItemId: string | null;
-  payoutNote: string | null;
+  releaseDueAt: number;
+  releaseStatus: ReleaseStatus;
+  releaseItemId: string | null;
+  releaseNote: string | null;
+  releasedAt: number | null;
   createdAt: number;
 };
 
 export const HOLD_MINUTES = 15;
-export const PAYOUT_DELAY_MS = Number(process.env.PAYOUT_DELAY_HOURS ?? 24) * 3_600_000;
+export const RELEASE_DELAY_MS = Number(process.env.RELEASE_DELAY_HOURS ?? process.env.PAYOUT_DELAY_HOURS ?? 24) * 3_600_000;
+/** Ordina's fee on a sale, as a percentage taken by PayPal as a platform fee. 0 at launch. */
+export const PLATFORM_FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT ?? 0);
+
+/** True when PayPal itself says this business can be paid (rule 6). */
+export const canBePaid = (b: Pick<Business, "paypal">) => !!b.paypal.merchantId && b.paypal.receivable && b.paypal.emailConfirmed;
 
 export const policyText = (b: { cancelHours: number | null; services?: Service[] }) => {
   if (b.cancelHours === null) return "";
@@ -135,7 +149,14 @@ function toBusiness(r: Row): Business {
     cancelHours: r.cancel_hours === null ? null : Number(r.cancel_hours),
     policy: "",
     hours: JSON.parse(String(r.hours_json || "{}")),
-    payoutEmail: (r.payout_email as string | null) ?? null,
+    paypal: {
+      trackingId: S(r.paypal_tracking_id),
+      merchantId: S(r.paypal_merchant_id),
+      email: S(r.paypal_email),
+      receivable: Number(r.paypal_receivable) === 1,
+      emailConfirmed: Number(r.paypal_email_confirmed) === 1,
+      checkedAt: r.paypal_checked_at == null ? null : Number(r.paypal_checked_at),
+    },
     status: r.status as BusinessStatus,
     demo: Number(r.demo) === 1,
     ownerEmail: (r.owner_email as string | null) ?? null,
@@ -165,20 +186,21 @@ function toBooking(r: Row): Booking {
     currency: String(r.currency),
     orderId: String(r.order_id),
     captureId: String(r.capture_id),
+    payeeMerchantId: String(r.payee_merchant_id),
     paypalFee: String(r.paypal_fee),
+    platformFee: String(r.platform_fee),
     netAmount: String(r.net_amount),
+    payerId: S(r.payer_id),
     payerName: S(r.payer_name),
     payerEmail: S(r.payer_email),
     status: r.status as Booking["status"],
     cancelledBy: (S(r.cancelled_by) as Booking["cancelledBy"]) ?? null,
     refunded: String(r.refunded),
-    refundDebit: String(r.refund_debit),
-    payoutDueAt: Number(r.payout_due_at),
-    payoutStatus: r.payout_status as PayoutStatus,
-    payoutAmount: S(r.payout_amount),
-    payoutBatchId: S(r.payout_batch_id),
-    payoutItemId: S(r.payout_item_id),
-    payoutNote: S(r.payout_note),
+    releaseDueAt: Number(r.release_due_at),
+    releaseStatus: r.release_status as ReleaseStatus,
+    releaseItemId: S(r.release_item_id),
+    releaseNote: S(r.release_note),
+    releasedAt: r.released_at == null ? null : Number(r.released_at),
     createdAt: Number(r.created_at),
   };
 }
@@ -196,9 +218,13 @@ export function getBusinessByEmail(email: string): (Business & { passwordHash: s
   const r = one("SELECT * FROM businesses WHERE owner_email = ?", email.trim().toLowerCase());
   return r ? { ...toBusiness(r), passwordHash: S(r.password_hash) } : undefined;
 }
-/** Businesses customers' agents can find: live only. */
+export function getBusinessByTracking(trackingId: string): Business | undefined {
+  const r = one("SELECT * FROM businesses WHERE paypal_tracking_id = ?", trackingId);
+  return r ? toBusiness(r) : undefined;
+}
+/** Businesses customers' agents can find: live and able to be paid. */
 export function liveBusinesses(): Business[] {
-  return all("SELECT * FROM businesses WHERE status = 'live' ORDER BY demo, created_at").map(toBusiness);
+  return all("SELECT * FROM businesses WHERE status = 'live' ORDER BY demo, created_at").map(toBusiness).filter(canBePaid);
 }
 export function getService(b: Business, serviceId: string): Service | undefined {
   return b.services.find((s) => s.id === serviceId);
@@ -266,8 +292,13 @@ export function updateBusiness(
     notes: string;
     cancelHours: number | null;
     hours: Hours;
-    payoutEmail: string | null;
     status: BusinessStatus;
+    paypalTrackingId: string | null;
+    paypalMerchantId: string | null;
+    paypalEmail: string | null;
+    paypalReceivable: boolean;
+    paypalEmailConfirmed: boolean;
+    paypalCheckedAt: number;
   }>,
 ): Business {
   const cols: Record<string, unknown> = {
@@ -279,8 +310,13 @@ export function updateBusiness(
     notes: patch.notes,
     cancel_hours: patch.cancelHours,
     hours_json: patch.hours === undefined ? undefined : JSON.stringify(patch.hours),
-    payout_email: patch.payoutEmail,
     status: patch.status,
+    paypal_tracking_id: patch.paypalTrackingId,
+    paypal_merchant_id: patch.paypalMerchantId,
+    paypal_email: patch.paypalEmail,
+    paypal_receivable: patch.paypalReceivable === undefined ? undefined : patch.paypalReceivable ? 1 : 0,
+    paypal_email_confirmed: patch.paypalEmailConfirmed === undefined ? undefined : patch.paypalEmailConfirmed ? 1 : 0,
+    paypal_checked_at: patch.paypalCheckedAt,
   };
   const set = Object.entries(cols).filter(([, v]) => v !== undefined);
   if (set.length) run(`UPDATE businesses SET ${set.map(([k]) => `${k} = ?`).join(", ")} WHERE id = ?`, ...set.map(([, v]) => v), id);
@@ -446,7 +482,7 @@ export function createHold(input: {
 }): Hold | { error: string } {
   const b = getBusiness(input.businessId);
   if (!b) return { error: "Unknown business." };
-  if (b.status !== "live") return { error: `${b.name} is not taking bookings right now.` };
+  if (b.status !== "live" || !canBePaid(b)) return { error: `${b.name} is not taking bookings right now.` };
   const s = getService(b, input.serviceId);
   if (!s) return { error: "Unknown item." };
   const name = input.customerName.trim().slice(0, 80);
@@ -486,7 +522,19 @@ export function holdByOrder(orderId: string): Hold | undefined {
 // ---------- bookings ----------
 export function confirmBooking(
   hold: Hold,
-  pay: { orderId: string; captureId: string; amount: string; currency: string; paypalFee: string; netAmount: string; payerName?: string; payerEmail?: string },
+  pay: {
+    orderId: string;
+    captureId: string;
+    amount: string;
+    currency: string;
+    payeeMerchantId: string;
+    paypalFee: string;
+    platformFee: string;
+    netAmount: string;
+    payerId?: string;
+    payerName?: string;
+    payerEmail?: string;
+  },
 ): Booking {
   const b = getBusiness(hold.businessId)!;
   const s = getItemAnyState(hold.serviceId)!;
@@ -496,8 +544,9 @@ export function confirmBooking(
   const minutes = s.kind === "appointment" ? s.minutes : 30;
   run(
     `INSERT INTO bookings (id, ref, business_id, item_id, item_name, kind, date, time, starts_at, minutes, customer_name, session_id,
-       amount, currency, order_id, capture_id, paypal_fee, net_amount, payer_name, payer_email, payout_due_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       amount, currency, order_id, capture_id, payee_merchant_id, paypal_fee, platform_fee, net_amount,
+       payer_id, payer_name, payer_email, release_due_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     randomUUID().slice(0, 6).toUpperCase(),
     b.id,
@@ -514,11 +563,14 @@ export function confirmBooking(
     pay.currency,
     pay.orderId,
     pay.captureId,
+    pay.payeeMerchantId,
     pay.paypalFee,
+    pay.platformFee,
     pay.netAmount,
+    pay.payerId ?? null,
     pay.payerName ?? null,
-    pay.payerEmail ?? null,
-    startsAt + minutes * 60_000 + PAYOUT_DELAY_MS,
+    pay.payerEmail?.toLowerCase() ?? null,
+    startsAt + minutes * 60_000 + RELEASE_DELAY_MS,
     Date.now(),
   );
   return getBooking(id)!;
@@ -539,6 +591,10 @@ export function bookingsForSessions(sessionIds: string[]): Booking[] {
     ...sessionIds,
   ).map(toBooking);
 }
+/** Every booking paid by one PayPal customer (their identity is the PayPal payer). */
+export function bookingsForPayer(payerEmail: string): Booking[] {
+  return all("SELECT * FROM bookings WHERE payer_email = ? ORDER BY created_at DESC", payerEmail.trim().toLowerCase()).map(toBooking);
+}
 export function listBookings(businessId: string): Booking[] {
   return all("SELECT * FROM bookings WHERE business_id = ? ORDER BY starts_at DESC", businessId).map(toBooking);
 }
@@ -547,13 +603,12 @@ export function updateBooking(id: string, patch: Record<string, string | number 
   run(`UPDATE bookings SET ${set.map(([k]) => `${k} = ?`).join(", ")} WHERE id = ?`, ...set.map(([, v]) => v), id);
   return getBooking(id)!;
 }
-export function addRefund(r: { id: string; bookingId: string; amount: string; debit: string; status: string; by: string }) {
+export function addRefund(r: { id: string; bookingId: string; amount: string; status: string; by: string }) {
   run(
-    "INSERT OR IGNORE INTO refunds (id, booking_id, amount, debit, status, by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO refunds (id, booking_id, amount, status, by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     r.id,
     r.bookingId,
     r.amount,
-    r.debit,
     r.status,
     r.by,
     Date.now(),
@@ -563,19 +618,18 @@ export function refundsFor(bookingId: string) {
   return all("SELECT * FROM refunds WHERE booking_id = ? ORDER BY created_at", bookingId).map((r) => ({
     id: String(r.id),
     amount: String(r.amount),
-    debit: String(r.debit),
     status: String(r.status),
     by: String(r.by),
     createdAt: Number(r.created_at),
   }));
 }
-/** Bookings whose payout time has come. */
-export function payoutsDue(now: number): Booking[] {
-  return all("SELECT * FROM bookings WHERE payout_status = 'waiting' AND payout_due_at <= ? ORDER BY business_id", now).map(toBooking);
+/** Bookings whose money PayPal still holds and whose release time has come. */
+export function releasesDue(now: number): Booking[] {
+  return all("SELECT * FROM bookings WHERE release_status = 'held' AND release_due_at <= ? ORDER BY business_id", now).map(toBooking);
 }
-/** Payouts PayPal has accepted but not yet finished. */
-export function payoutsInFlight(): Booking[] {
-  return all("SELECT * FROM bookings WHERE payout_status IN ('sending', 'sent') AND payout_batch_id IS NOT NULL").map(toBooking);
+/** Releases PayPal accepted but has not finished. */
+export function releasesInFlight(): Booking[] {
+  return all("SELECT * FROM bookings WHERE release_status = 'releasing'").map(toBooking);
 }
 
 /** Test helper: empty bookings and holds, keep businesses. */

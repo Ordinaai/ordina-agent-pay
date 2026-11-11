@@ -1,112 +1,71 @@
-// Paying businesses out through PayPal Payouts, 24 hours after each booking
-// happens. A booking counts as paid out only when PayPal reports the payout
-// item SUCCESS; until then it shows exactly what PayPal said.
-import { payoutCents } from "./commerce.ts";
+// Releasing held money to businesses (rule 7). PayPal holds every payment
+// (Multiparty, DELAYED disbursement); after the booking or pickup plus the
+// delay, Ordina asks PayPal to release it (Referenced Payouts). A booking
+// counts as released only when PayPal reports SUCCESS.
 import * as paypal from "./paypal.ts";
-import { fromCents, getBooking, getBusiness, payoutsDue, payoutsInFlight, updateBooking, type Booking } from "./store.ts";
+import { getBooking, releasesDue, releasesInFlight, updateBooking, type Booking } from "./store.ts";
 import { all } from "./db.ts";
 
 let running = false;
 
-/** Send every payout that is due (or, with `force`, every one still waiting, for one business). */
-export async function runPayouts(opts: { now?: number; forceBusinessId?: string } = {}) {
-  if (running) return { sent: 0 };
+/** Release everything due (or, with forceBusinessId, everything still held for one business). */
+export async function runReleases(opts: { now?: number; forceBusinessId?: string } = {}) {
+  if (running) return { released: 0, pending: 0, failed: 0 };
   running = true;
   try {
     const due: Booking[] = opts.forceBusinessId
-      ? all("SELECT id FROM bookings WHERE business_id = ? AND payout_status = 'waiting'", opts.forceBusinessId).map(
-          (r) => getBooking(String(r.id))!,
-        )
-      : payoutsDue(opts.now ?? Date.now());
-
-    const byBiz = new Map<string, Booking[]>();
+      ? all("SELECT id FROM bookings WHERE business_id = ? AND release_status = 'held'", opts.forceBusinessId).map((r) => getBooking(String(r.id))!)
+      : releasesDue(opts.now ?? Date.now());
+    let released = 0;
+    let pending = 0;
+    let failed = 0;
     for (const bk of due) {
-      const amount = payoutCents(bk);
-      if (amount <= 0) {
-        updateBooking(bk.id, { payout_status: "none", payout_note: "Nothing left to pay out after refunds." });
-        continue;
-      }
-      byBiz.set(bk.businessId, [...(byBiz.get(bk.businessId) ?? []), bk]);
-    }
-
-    let sent = 0;
-    for (const [businessId, list] of byBiz) {
-      const b = getBusiness(businessId);
-      if (!b?.payoutEmail) {
-        for (const bk of list) updateBooking(bk.id, { payout_note: "Add your PayPal email in Setup to get paid." });
-        continue;
-      }
-      const batchKey = `ap-${businessId}-${Date.now()}`.slice(0, 100);
-      for (const bk of list) updateBooking(bk.id, { payout_status: "sending", payout_note: null });
+      updateBooking(bk.id, { release_status: "releasing", release_note: null });
+      let res: paypal.ReleaseResult;
       try {
-        const batch = await paypal.createPayout(
-          batchKey,
-          list.map((bk) => ({
-            senderItemId: bk.id,
-            email: b.payoutEmail!,
-            amount: fromCents(payoutCents(bk)),
-            currency: bk.currency,
-            note: `${bk.serviceName}, ref ${bk.ref}`,
-          })),
-        );
-        for (const bk of list) {
-          updateBooking(bk.id, { payout_status: "sent", payout_batch_id: batch.batchId, payout_amount: fromCents(payoutCents(bk)) });
-        }
-        sent += list.length;
+        res = await paypal.releaseFunds(bk.captureId, bk.id);
       } catch (err) {
         const why = err instanceof paypal.PayPalError ? err.issue : "PAYPAL_ERROR";
-        for (const bk of list) updateBooking(bk.id, { payout_status: "waiting", payout_note: `PayPal refused the payout (${why}); it will be retried.` });
+        updateBooking(bk.id, { release_status: "held", release_note: `PayPal did not release it (${why}); it will be retried.` });
+        failed++;
+        continue;
+      }
+      if (res.status === "SUCCESS") {
+        updateBooking(bk.id, { release_status: "released", release_item_id: res.itemId ?? null, released_at: Date.now() });
+        released++;
+      } else if (res.status === "PENDING") {
+        updateBooking(bk.id, { release_item_id: res.itemId ?? null, release_note: "PayPal is processing the release." });
+        pending++;
+      } else {
+        updateBooking(bk.id, { release_status: "failed", release_note: `PayPal could not release it${res.reason ? `: ${res.reason}` : ""}.` });
+        failed++;
       }
     }
-    await pollPayouts();
-    return { sent };
+    return { released, pending, failed };
   } finally {
     running = false;
   }
 }
 
-const FINAL: Record<string, Booking["payoutStatus"]> = {
-  SUCCESS: "paid",
-  UNCLAIMED: "unclaimed",
-  FAILED: "failed",
-  RETURNED: "failed",
-  BLOCKED: "failed",
-  REFUNDED: "failed",
-  REVERSED: "failed",
-};
-
-/** Read back what PayPal did with every payout we sent. */
-export async function pollPayouts() {
-  const byBatch = new Map<string, Booking[]>();
-  for (const bk of payoutsInFlight()) byBatch.set(bk.payoutBatchId!, [...(byBatch.get(bk.payoutBatchId!) ?? []), bk]);
-  for (const [batchId, list] of byBatch) {
-    let items: paypal.PayoutItemState[];
+/** Retry releases PayPal left pending (it answers again with the final state). */
+export async function retryPendingReleases() {
+  for (const bk of releasesInFlight()) {
     try {
-      items = await paypal.getPayout(batchId);
+      const res = await paypal.releaseFunds(bk.captureId, bk.id);
+      if (res.status === "SUCCESS") updateBooking(bk.id, { release_status: "released", released_at: Date.now(), release_note: null });
+      else if (res.status === "FAILED") updateBooking(bk.id, { release_status: "failed", release_note: res.reason ?? "PayPal could not release it." });
     } catch {
-      continue; // try again next round
-    }
-    for (const bk of list) {
-      const it = items.find((i) => i.senderItemId === bk.id);
-      if (!it) continue;
-      const status = FINAL[it.status];
-      updateBooking(bk.id, {
-        payout_status: status ?? "sent",
-        payout_item_id: it.payoutItemId,
-        payout_note:
-          status === "unclaimed"
-            ? "PayPal is holding it: no PayPal account uses that email yet. Sign up with it within 30 days to claim."
-            : status === "failed"
-              ? `PayPal could not pay this out${it.error ? `: ${it.error}` : ""}.`
-              : null,
-      });
+      // next round
     }
   }
 }
 
 /** Every minute in production. */
-export function startPayoutClock() {
-  const tick = () => runPayouts().catch((e) => console.error("payouts", e));
+export function startReleaseClock() {
+  const tick = () =>
+    runReleases()
+      .then(retryPendingReleases)
+      .catch((e) => console.error("releases", e));
   setInterval(tick, 60_000).unref();
   setTimeout(tick, 5_000).unref();
 }

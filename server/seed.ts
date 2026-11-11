@@ -94,7 +94,13 @@ export function seedDemoBusinesses() {
       about: s.about,
       cancelHours: s.cancelHours,
       hours: s.hours,
-      payoutEmail: process.env.DEMO_PAYOUT_EMAIL || null,
+      // Demo businesses share one connected PayPal seller: a Sandbox business account already
+      // onboarded to Ordina's partner app (DEMO_SELLER_MERCHANT_ID), or a mock one offline.
+      paypalMerchantId: process.env.DEMO_SELLER_MERCHANT_ID || `DEMO-${s.id.toUpperCase()}`,
+      paypalEmail: process.env.DEMO_SELLER_EMAIL || "demo-seller@example.com",
+      paypalReceivable: true,
+      paypalEmailConfirmed: true,
+      paypalCheckedAt: Date.now(),
       status: "live",
     });
   }

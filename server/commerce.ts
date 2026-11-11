@@ -1,18 +1,23 @@
-// The money path. Agents can ask for these actions, but every rule that
-// protects the customer, the business or Ordina is enforced here, in code
-// (docs/BUSINESS_SIDE.md):
-// - the price comes from the business's list, never from a model;
-// - a payment above the customer's limit is refused before it is shown;
-// - nothing is paid without the human approving it in PayPal;
-// - a booking exists only after PayPal says the capture COMPLETED for the
-//   exact amount and currency of the held item;
-// - the business is owed the net PayPal reported, minus what refunds cost;
-// - no refund through Agent Pay once the business has been paid out.
+// The money path, on PayPal Multiparty (docs: AGENT_COMMERCE_SPEC in Ordina).
+// Agents may ask for these actions; every rule is enforced here, in code:
+//  1. The price comes from the business's list, never from what an agent writes.
+//  2. A payment above the customer's limit is refused before it is shown.
+//  3. No agent can pay; only the customer approves in PayPal.
+//  4. A booking exists only on a COMPLETED capture for the exact amount and
+//     currency, paid to this business's own PayPal.
+//  5. A hold that ran out is never charged; an offer is captured once, by its
+//     own conversation.
+//  6. A business PayPal cannot pay (not connected, not live, paused) cannot be booked.
+//  7. Money is released only after the booking plus the delay, and counted
+//     released only when PayPal confirms.
+//  8. Only server objects (the payment offer, the booking) are facts; nothing
+//     an agent says in prose is.
 import { emit } from "./events.ts";
 import * as paypal from "./paypal.ts";
 import {
   addRefund,
   bookingByOrder,
+  canBePaid,
   confirmBooking,
   fromCents,
   getBooking,
@@ -21,6 +26,7 @@ import {
   getItemAnyState,
   getService,
   holdByOrder,
+  PLATFORM_FEE_PERCENT,
   toCents,
   updateBooking,
   type Booking,
@@ -31,7 +37,6 @@ const niceDate = (d: string) =>
 
 export type Session = { id: string; budget: number; pendingOrderId?: string; pinnedBusinessId?: string };
 const sessions = new Map<string, Session>();
-
 export function session(id: string): Session {
   let s = sessions.get(id);
   if (!s) {
@@ -46,22 +51,58 @@ export function setBudget(id: string, budget: number) {
   return s;
 }
 
-/** Secretary tool: create the PayPal order for a held time, at the listed price. */
-export async function startPayment(holdId: string, sessionId: string) {
+/** The one object a customer's agent may treat as the deal (rule 8). */
+export type PaymentOffer = {
+  offer_id: string; // the PayPal order id
+  business_id: string;
+  business_name: string;
+  item: string;
+  kind: "appointment" | "pickup";
+  date: string;
+  time: string;
+  timezone: string;
+  price: string;
+  currency: string;
+  cancellation_policy: string;
+  expires_at: string;
+  paid_to: string; // shown to the customer: the business's own PayPal
+};
+
+/** Ordina's fee for a price, in cents (a PayPal platform fee; 0 at launch). */
+export const platformFeeCents = (price: string) => Math.round((toCents(price) * PLATFORM_FEE_PERCENT) / 100);
+
+/** Secretary tool: create the PayPal order for a held time, at the listed price, paid to the business. */
+export async function startPayment(holdId: string, sessionId: string): Promise<PaymentOffer | { error: string }> {
   const hold = getHold(holdId);
   if (!hold || hold.sessionId !== sessionId) return { error: "No such hold in this conversation." };
   if (hold.status !== "held") return { error: `The hold is ${hold.status}; hold the time again first.` };
   const b = getBusiness(hold.businessId)!;
+  if (b.status !== "live" || !canBePaid(b)) return { error: `${b.name} cannot take payments right now.` };
   const s = getService(b, hold.serviceId);
   if (!s) return { error: "That item is no longer offered." };
-  if (hold.orderId) return { order_id: hold.orderId, amount: s.price, currency: b.currency, already_created: true };
+  const offer = (orderId: string): PaymentOffer => ({
+    offer_id: orderId,
+    business_id: b.id,
+    business_name: b.name,
+    item: s.name,
+    kind: s.kind,
+    date: hold.date,
+    time: hold.time,
+    timezone: b.timezone,
+    price: s.price,
+    currency: b.currency,
+    cancellation_policy: b.policy,
+    expires_at: new Date(hold.expiresAt).toISOString(),
+    paid_to: `${b.name}'s PayPal`,
+  });
+  if (hold.orderId) return offer(hold.orderId);
   emit({
     sessionId,
     businessId: b.id,
     kind: "paypal",
     actor: "secretary",
     title: "Create PayPal order",
-    detail: `${s.name}, ${hold.date} ${hold.time}: ${b.currency} ${s.price}`,
+    detail: `${s.name}, ${hold.date} ${hold.time}: ${b.currency} ${s.price}, paid to ${b.name}`,
   });
   const order = await paypal.createOrder({
     amount: s.price,
@@ -69,27 +110,20 @@ export async function startPayment(holdId: string, sessionId: string) {
     description: `${s.name} at ${b.name}, ${hold.date} ${hold.time}`,
     referenceId: hold.id,
     brandName: b.name,
+    payeeMerchantId: b.paypal.merchantId!,
+    platformFee: fromCents(platformFeeCents(s.price)),
   });
   hold.orderId = order.id;
   emit({ sessionId, businessId: b.id, kind: "paypal", actor: "paypal", title: `Order ${order.status}`, detail: order.id, data: { orderId: order.id } });
-  return {
-    order_id: order.id,
-    amount: s.price,
-    currency: b.currency,
-    service: s.name,
-    kind: s.kind,
-    date: hold.date,
-    time: hold.time,
-    hold_expires_in_minutes: Math.max(0, Math.round((hold.expiresAt - Date.now()) / 60_000)),
-  };
+  return offer(order.id);
 }
 
-/** Buyer tool: show a payment to the human. Refused above their limit. */
-export function requestApproval(sessionId: string, orderId: string) {
+/** Buyer tool: show the offer to the human. Refused above their limit. */
+export function requestApproval(sessionId: string, offerId: string) {
   const s = session(sessionId);
-  const hold = holdByOrder(orderId);
-  if (!hold || hold.sessionId !== sessionId) return { error: "Unknown order for this conversation." };
-  if (hold.status !== "held") return { error: `The hold behind this order is ${hold.status}.` };
+  const hold = holdByOrder(offerId);
+  if (!hold || hold.sessionId !== sessionId) return { error: "Unknown offer for this conversation." };
+  if (hold.status !== "held") return { error: `The hold behind this offer is ${hold.status}.` };
   const b = getBusiness(hold.businessId)!;
   const svc = getService(b, hold.serviceId);
   if (!svc) return { error: "That item is no longer offered." };
@@ -106,7 +140,7 @@ export function requestApproval(sessionId: string, orderId: string) {
       error: `Refused: ${b.currency} ${svc.price} is above the customer's limit of ${b.currency} ${s.budget.toFixed(2)}. Tell the customer and ask whether they want to raise the limit or choose something else.`,
     };
   }
-  s.pendingOrderId = orderId;
+  s.pendingOrderId = offerId;
   emit({
     sessionId,
     businessId: b.id,
@@ -115,7 +149,7 @@ export function requestApproval(sessionId: string, orderId: string) {
     title: "Waiting for your approval in PayPal",
     detail: `${svc.name} at ${b.name}, ${b.currency} ${svc.price}`,
     data: {
-      orderId,
+      orderId: offerId,
       businessId: b.id,
       businessName: b.name,
       service: svc.name,
@@ -131,7 +165,7 @@ export function requestApproval(sessionId: string, orderId: string) {
   });
   return {
     status: "shown_to_customer",
-    note: "The customer now sees a PayPal button. Nothing is paid until they approve it. Stop and tell them what they are approving.",
+    note: "The customer now sees this offer with a PayPal button. Nothing is paid until they approve it in PayPal. Tell them what they are approving, using only the offer's fields.",
   };
 }
 
@@ -143,7 +177,7 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
   const existing = bookingByOrder(orderId);
   if (existing && existing.sessionId === sessionId) return { ok: true, booking: existing };
   const hold = holdByOrder(orderId);
-  if (!hold || hold.sessionId !== sessionId) return { ok: false, reason: "Unknown order for this conversation." };
+  if (!hold || hold.sessionId !== sessionId) return { ok: false, reason: "Unknown offer for this conversation." };
   if (s.pendingOrderId !== orderId) return { ok: false, reason: "This payment was not the one shown for approval." };
   const b = getBusiness(hold.businessId)!;
   const svc = getItemAnyState(hold.serviceId)!;
@@ -163,38 +197,38 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
     kind: "paypal",
     actor: "paypal",
     title: `Capture ${cap.captureStatus ?? cap.status}`,
-    detail: `${cap.currency ?? ""} ${cap.amount ?? ""} ${cap.captureId ?? ""}`.trim(),
+    detail: `${cap.currency ?? ""} ${cap.amount ?? ""} to ${b.name}, held by PayPal`.trim(),
   });
 
-  // Positive confirmation only: COMPLETED, for exactly the listed price.
+  // Rule 4: positive confirmation, for the exact price, to this business.
   const exact = cap.amount === svc.price && cap.currency === b.currency;
-  if (cap.status !== "COMPLETED" || cap.captureStatus !== "COMPLETED" || !cap.captureId || !exact) {
+  const rightPayee = !!cap.payeeMerchantId && cap.payeeMerchantId === b.paypal.merchantId;
+  const known = cap.paypalFee !== undefined && cap.netAmount !== undefined;
+  if (cap.status !== "COMPLETED" || cap.captureStatus !== "COMPLETED" || !cap.captureId || !exact || !rightPayee || !known) {
     emit({
       sessionId,
       businessId: b.id,
       kind: "guardrail",
       actor: "server",
       title: "Not booked: payment not confirmed",
-      detail: `status ${cap.status}/${cap.captureStatus}, amount ${cap.currency} ${cap.amount}`,
+      detail: `status ${cap.status}/${cap.captureStatus}, amount ${cap.currency} ${cap.amount}, payee ${rightPayee ? "ok" : "wrong"}`,
     });
-    return { ok: false, reason: "PayPal did not confirm the full payment, so nothing was booked." };
+    return { ok: false, reason: "PayPal did not confirm the full payment to this business, so nothing was booked." };
   }
 
-  const feeKnown = cap.paypalFee !== undefined && cap.netAmount !== undefined;
-  let booking = confirmBooking(hold, {
+  const booking = confirmBooking(hold, {
     orderId,
     captureId: cap.captureId,
     amount: cap.amount!,
     currency: cap.currency!,
-    paypalFee: cap.paypalFee ?? "0.00",
-    netAmount: cap.netAmount ?? "0.00",
+    payeeMerchantId: cap.payeeMerchantId!,
+    paypalFee: cap.paypalFee!,
+    platformFee: cap.platformFee ?? "0.00",
+    netAmount: cap.netAmount!,
+    payerId: cap.payerId,
     payerName: cap.payerName,
     payerEmail: cap.payerEmail,
   });
-  if (!feeKnown) {
-    // Never guess what the business is owed.
-    booking = updateBooking(booking.id, { payout_status: "failed", payout_note: "PayPal did not report its fee; pay out by hand." });
-  }
   s.pendingOrderId = undefined;
   emit({
     sessionId,
@@ -211,16 +245,23 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
 // ---------- refunds and cancellations ----------
 type Result = { ok: true; booking: Booking } | { ok: false; reason: string };
 
-/** What the business will be paid for a booking, in cents (never below zero). */
-export function payoutCents(bk: Booking): number {
-  return Math.max(0, toCents(bk.netAmount) - toCents(bk.refundDebit));
-}
 export const refundableCents = (bk: Booking) => toCents(bk.amount) - toCents(bk.refunded);
-export const canRefund = (bk: Booking) => bk.payoutStatus === "waiting" && refundableCents(bk) > 0;
+/** Refunds go through Ordina only while PayPal still holds the money. */
+export const canRefund = (bk: Booking) => bk.releaseStatus === "held" && refundableCents(bk) > 0;
+/** What the business will get when the money is released (PayPal's net, less refunds). */
+export const businessGetsCents = (bk: Booking) => {
+  if (bk.releaseStatus === "none") return 0;
+  const refunded = toCents(bk.refunded);
+  if (refunded === 0) return toCents(bk.netAmount);
+  // A refund returns the customer's money from the held amount; PayPal returns its
+  // percentage fee pro rata, keeps the fixed part. Estimated until PayPal reports it.
+  const share = 1 - refunded / toCents(bk.amount);
+  return Math.max(0, Math.round(toCents(bk.netAmount) * share));
+};
 
 async function refund(bk: Booking, cents: number, by: "customer" | "business"): Promise<Result> {
-  if (bk.payoutStatus !== "waiting") {
-    return { ok: false, reason: "This booking has already been paid out to the business. Any refund is settled directly between you." };
+  if (bk.releaseStatus !== "held") {
+    return { ok: false, reason: "PayPal has already released this money to the business. Any refund is settled directly between you." };
   }
   if (!Number.isInteger(cents) || cents <= 0) return { ok: false, reason: "Enter an amount above zero." };
   if (cents > refundableCents(bk)) return { ok: false, reason: `At most $${fromCents(refundableCents(bk))} can still be refunded.` };
@@ -237,6 +278,7 @@ async function refund(bk: Booking, cents: number, by: "customer" | "business"): 
   let res: paypal.RefundResult;
   try {
     res = await paypal.refundCapture(bk.captureId, {
+      sellerMerchantId: bk.payeeMerchantId,
       amount,
       currency: bk.currency,
       note: `Refund from ${b.name} for ${bk.ref}`,
@@ -248,14 +290,11 @@ async function refund(bk: Booking, cents: number, by: "customer" | "business"): 
     return { ok: false, reason: `PayPal refused the refund (${reason}). Nothing changed.` };
   }
   if (res.status !== "COMPLETED" && res.status !== "PENDING") return { ok: false, reason: `PayPal answered ${res.status}. Nothing changed.` };
-  addRefund({ id: res.id, bookingId: bk.id, amount: res.amount, debit: res.debit, status: res.status, by });
+  addRefund({ id: res.id, bookingId: bk.id, amount: res.amount, status: res.status, by });
   const refunded = toCents(bk.refunded) + toCents(res.amount);
-  const debit = toCents(bk.refundDebit) + toCents(res.debit);
-  const full = refunded >= toCents(bk.amount);
   const updated = updateBooking(bk.id, {
     refunded: fromCents(refunded),
-    refund_debit: fromCents(debit),
-    payout_status: full || toCents(bk.netAmount) - debit <= 0 ? "none" : "waiting",
+    release_status: refunded >= toCents(bk.amount) ? "none" : "held",
   });
   emit({
     sessionId: bk.sessionId,
@@ -271,7 +310,7 @@ async function refund(bk: Booking, cents: number, by: "customer" | "business"): 
 /** When a customer may still cancel for a full refund (null if they cannot). */
 export function cancelDeadline(bk: Booking): number | null {
   const b = getBusiness(bk.businessId);
-  if (!b || bk.status !== "confirmed" || b.cancelHours === null || bk.payoutStatus !== "waiting") return null;
+  if (!b || bk.status !== "confirmed" || b.cancelHours === null || bk.releaseStatus !== "held") return null;
   return bk.startsAt - b.cancelHours * 3_600_000;
 }
 
@@ -307,8 +346,6 @@ export async function businessCancel(businessId: string, bookingId: string, refu
     const out = await refund(bk, cents, "business");
     if (!out.ok) return out;
     current = out.booking;
-  } else if (bk.payoutStatus !== "waiting") {
-    return { ok: false, reason: "This booking has already been paid out." };
   }
   const booking = updateBooking(current.id, { status: "cancelled", cancelled_by: "business" });
   emit({
