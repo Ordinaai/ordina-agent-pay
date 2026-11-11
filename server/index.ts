@@ -5,12 +5,13 @@ import { fileURLToPath } from "node:url";
 import { afterPayment, buyerTurn, BusyError } from "./agents/buyer.ts";
 import { aiMode, MODEL } from "./agents/loop.ts";
 import { bizApi } from "./business-api.ts";
-import { cancelDeadline, captureAndConfirm, customerCancel, session, setBudget } from "./commerce.ts";
+import { cancelDeadline, captureAndConfirm, customerCancel, offerByPayToken, session, setBudget } from "./commerce.ts";
 import { eventsFor, subscribe, type WireEvent } from "./events.ts";
 import { allowTurn, validSession } from "./guard.ts";
 import { mockApprove, paypalClientId, paypalMode } from "./paypal.ts";
 import { startReleaseClock } from "./payouts.ts";
 import { connectApi, mockPayPalPages } from "./paypal-connect.ts";
+import { mcpRouter } from "./mcp.ts";
 import { seedDemoBusinesses } from "./seed.ts";
 import { bookingsForSessions, getBusiness, getBusinessByHandle, liveBusinesses, type Booking } from "./store.ts";
 
@@ -154,6 +155,47 @@ app.post("/api/pay/capture", async (req, res) => {
   }
 });
 
+// ---------- the hosted pay page (/pay/<token>): any agent can send a customer here ----------
+const validToken = (t: unknown): t is string => typeof t === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(t);
+
+app.get("/api/offers/:token", (req, res) => {
+  const o = validToken(req.params.token) ? offerByPayToken(req.params.token) : null;
+  if (!o) {
+    res.status(404).json({ error: "This payment link is not valid or has expired." });
+    return;
+  }
+  res.json({ offer: o.view, paypal: paypalMode(), paypalClientId: paypalMode() === "mock" ? null : paypalClientId() });
+});
+
+app.post("/api/offers/:token/mock-approve", (req, res) => {
+  const o = validToken(req.params.token) ? offerByPayToken(req.params.token) : null;
+  if (!o || paypalMode() !== "mock") {
+    res.status(400).json({ error: "Bad request" });
+    return;
+  }
+  res.json({ approved: mockApprove(o.view.orderId) });
+});
+
+app.post("/api/offers/:token/capture", async (req, res) => {
+  const o = validToken(req.params.token) ? offerByPayToken(req.params.token) : null;
+  if (!o) {
+    res.status(404).json({ error: "This payment link is not valid or has expired." });
+    return;
+  }
+  try {
+    const out = await captureAndConfirm(o.sessionId, o.view.orderId);
+    if (!out.ok) {
+      res.status(422).json({ error: out.reason });
+      return;
+    }
+    await afterPayment(o.sessionId, out.booking);
+    res.json({ booking: customerView(out.booking) });
+  } catch (err) {
+    console.error("capture failed", err);
+    res.status(502).json({ error: "Could not reach PayPal. Nothing was booked." });
+  }
+});
+
 // ---------- the customer's bookings, across their chats ----------
 function sessionList(raw: unknown): string[] {
   const list = (Array.isArray(raw) ? raw : String(raw ?? "").split(",")).map(String);
@@ -209,6 +251,7 @@ app.post("/api/bookings/cancel", async (req, res) => {
 });
 
 // ---------- the business owner ----------
+app.use("/mcp", mcpRouter);
 app.use("/api/biz/paypal", connectApi);
 app.use("/api/biz", bizApi);
 app.use("/paypal-sandbox-mock", mockPayPalPages);

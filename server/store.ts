@@ -65,6 +65,8 @@ export type Hold = {
   expiresAt: number;
   status: "held" | "paid" | "expired" | "released";
   orderId?: string;
+  /** Unguessable token for the hosted pay page (/pay/<token>), given to the customer only. */
+  payToken?: string;
 };
 
 /** held: PayPal holds it; releasing: asked PayPal; released: PayPal confirmed; none: nothing to release. */
@@ -512,6 +514,11 @@ export function createHold(input: {
 export function getHold(id: string): Hold | undefined {
   expireHolds();
   return holds.get(id);
+}
+export function holdByPayToken(token: string): Hold | undefined {
+  expireHolds();
+  for (const h of holds.values()) if (h.payToken && h.payToken === token) return h;
+  return undefined;
 }
 export function holdByOrder(orderId: string): Hold | undefined {
   expireHolds();

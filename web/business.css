@@ -743,3 +743,94 @@
     flex-wrap: wrap;
   }
 }
+
+/* Hosted pay page (/pay/<token>) */
+.paypage {
+  min-height: 100%;
+  display: flex;
+  padding: 40px 18px;
+  background: var(--side);
+}
+.paypage-card {
+  margin: auto;
+  width: 100%;
+  max-width: 440px;
+  padding: 26px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px -30px rgba(17, 17, 19, 0.3);
+}
+.paypage-eyebrow {
+  margin-top: 22px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.paypage-card h1 {
+  margin-top: 4px;
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.paypage-biz {
+  color: var(--muted);
+  font-size: 14.5px;
+}
+.paypage-facts {
+  margin: 18px 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.paypage-facts div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.paypage-facts dt {
+  font-size: 13px;
+  color: var(--muted);
+}
+.paypage-facts dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+.paypage-amt {
+  font-family: var(--display);
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em;
+}
+.paypage-amt small {
+  font-family: var(--font);
+  font-size: 11.5px;
+  color: var(--faint);
+  letter-spacing: 0;
+}
+.paypage-pay {
+  min-height: 46px;
+}
+.paypage-note {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.paypage-msg h1 {
+  margin-top: 22px;
+}
+.paypage-foot {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--faint);
+}

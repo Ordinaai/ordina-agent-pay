@@ -12,6 +12,7 @@
 //     released only when PayPal confirms.
 //  8. Only server objects (the payment offer, the booking) are facts; nothing
 //     an agent says in prose is.
+import { randomBytes } from "node:crypto";
 import { emit } from "./events.ts";
 import * as paypal from "./paypal.ts";
 import {
@@ -26,6 +27,7 @@ import {
   getItemAnyState,
   getService,
   holdByOrder,
+  holdByPayToken,
   PLATFORM_FEE_PERCENT,
   toCents,
   updateBooking,
@@ -141,6 +143,7 @@ export function requestApproval(sessionId: string, offerId: string) {
     };
   }
   s.pendingOrderId = offerId;
+  hold.payToken ??= randomBytes(18).toString("base64url");
   emit({
     sessionId,
     businessId: b.id,
@@ -161,11 +164,42 @@ export function requestApproval(sessionId: string, offerId: string) {
       currency: b.currency,
       policy: b.policy,
       expiresAt: hold.expiresAt,
+      payPath: `/pay/${hold.payToken}`,
     },
   });
   return {
     status: "shown_to_customer",
-    note: "The customer now sees this offer with a PayPal button. Nothing is paid until they approve it in PayPal. Tell them what they are approving, using only the offer's fields.",
+    pay_path: `/pay/${hold.payToken}`,
+    note: "The customer now sees this offer with a PayPal button (in this chat, or on its pay page). Nothing is paid until they approve it in PayPal. Tell them what they are approving, using only the offer's fields.",
+  };
+}
+
+/** The hosted pay page's view of an offer, by its token (no session needed: the token is the key). */
+export function offerByPayToken(token: string) {
+  const hold = holdByPayToken(token);
+  if (!hold || !hold.orderId) return null;
+  const b = getBusiness(hold.businessId)!;
+  const svc = getItemAnyState(hold.serviceId)!;
+  const booking = bookingByOrder(hold.orderId);
+  return {
+    sessionId: hold.sessionId,
+    view: {
+      orderId: hold.orderId,
+      businessName: b.name,
+      city: b.city,
+      service: svc.name,
+      kind: svc.kind,
+      date: hold.date,
+      time: hold.time,
+      timezone: b.timezone,
+      amount: svc.price,
+      currency: b.currency,
+      policy: b.policy,
+      customerName: hold.customerName,
+      expiresAt: hold.expiresAt,
+      state: booking ? "booked" : hold.status === "held" ? "awaiting_approval" : hold.status,
+      bookingRef: booking?.ref ?? null,
+    },
   };
 }
 
