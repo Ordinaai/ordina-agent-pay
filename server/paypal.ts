@@ -47,6 +47,17 @@ export const paypalMode = (): "sandbox" | "live" | "mock" =>
   MODE === "mock" ? "mock" : process.env.PAYPAL_ENV === "live" ? "live" : "sandbox";
 export const paypalClientId = (): string | null => process.env.PAYPAL_CLIENT_ID ?? null;
 
+/**
+ * Which PayPal product moves the money.
+ *  - "standard" (default): PayPal Orders on one seller account, the app's own. Money lands with the seller
+ *    at capture. Works in the Sandbox with no partner approval. Used for the hackathon entry.
+ *  - "multiparty": each business is its own payee, PayPal holds the money (DELAYED) and Ordina releases it.
+ *    Needs PayPal to approve Ordina as a platform partner. Kept as the production roadmap.
+ */
+export const paypalFlow = (): "standard" | "multiparty" => (process.env.PAYPAL_FLOW === "multiparty" ? "multiparty" : "standard");
+/** Standard flow: the one seller every order pays (the Sandbox business account's merchant id). */
+export const sellerMerchantId = (): string => process.env.PAYPAL_SELLER_MERCHANT_ID || "DEMO-SELLER";
+
 export class PayPalError extends Error {
   constructor(
     public status: number,
@@ -238,8 +249,12 @@ export async function createOrder(input: {
           custom_id: input.referenceId,
           description: input.description.slice(0, 127),
           amount: { currency_code: input.currency, value: input.amount },
-          payee: { merchant_id: input.payeeMerchantId },
-          payment_instruction: { disbursement_mode: "DELAYED", ...(fee ? { platform_fees: fee } : {}) },
+          ...(paypalFlow() === "multiparty"
+            ? {
+                payee: { merchant_id: input.payeeMerchantId },
+                payment_instruction: { disbursement_mode: "DELAYED", ...(fee ? { platform_fees: fee } : {}) },
+              }
+            : {}),
         },
       ],
       payment_source: {
@@ -280,7 +295,7 @@ export async function captureOrder(orderId: string): Promise<CaptureResult> {
       platformFee: o.platformFee,
       netAmount: dollars(cents(o.amount) - fee - cents(o.platformFee)),
       payeeMerchantId: o.payee,
-      disbursement: "HELD",
+      disbursement: paypalFlow() === "multiparty" ? "HELD" : "IMMEDIATE",
       payerName: "Sandbox Buyer",
       payerEmail: "sandbox-buyer@example.com",
       payerId: "MOCKPAYER1",
@@ -348,7 +363,7 @@ export async function refundCapture(
     `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`,
     {
       method: "POST",
-      seller: input.sellerMerchantId,
+      seller: paypalFlow() === "multiparty" ? input.sellerMerchantId : undefined,
       requestId: `refund-${input.key}`,
       body: { amount: { value: input.amount, currency_code: input.currency }, note_to_payer: input.note.slice(0, 255) },
     },

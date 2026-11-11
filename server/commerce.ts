@@ -216,7 +216,7 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
     return { ok: false, reason: "PayPal did not confirm the full payment to this business, so nothing was booked." };
   }
 
-  const booking = confirmBooking(hold, {
+  let booking = confirmBooking(hold, {
     orderId,
     captureId: cap.captureId,
     amount: cap.amount!,
@@ -229,6 +229,10 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
     payerName: cap.payerName,
     payerEmail: cap.payerEmail,
   });
+  // Standard flow: PayPal paid the seller at capture; there is nothing to hold or release.
+  if (cap.disbursement !== "HELD") {
+    booking = updateBooking(booking.id, { release_status: "released", released_at: Date.now(), release_due_at: Date.now() });
+  }
   s.pendingOrderId = undefined;
   emit({
     sessionId,
@@ -318,7 +322,7 @@ async function refund(bk: Booking, cents: number, by: "customer" | "business", n
 /** When a customer may still cancel for a full refund (null if they cannot). */
 export function cancelDeadline(bk: Booking): number | null {
   const b = getBusiness(bk.businessId);
-  if (!b || bk.status !== "confirmed" || b.cancelHours === null || bk.releaseStatus !== "held") return null;
+  if (!b || bk.status !== "confirmed" || b.cancelHours === null || !canRefund(bk)) return null;
   return bk.startsAt - b.cancelHours * 3_600_000;
 }
 

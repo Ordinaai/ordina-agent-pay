@@ -1,4 +1,5 @@
 // The four demo businesses, so the directory is never empty. Fictional names.
+import { paypalFlow, sellerMerchantId } from "./paypal.ts";
 import { createBusiness, getBusiness, saveItems, updateBusiness, type Hours, type ItemKind } from "./store.ts";
 
 const weekdays = (open: string, close: string): Hours => ({
@@ -87,7 +88,11 @@ const SEEDS: Seed[] = [
 
 export function seedDemoBusinesses() {
   for (const s of SEEDS) {
-    if (getBusiness(s.id)) continue;
+    if (getBusiness(s.id)) {
+      // Keep existing demo businesses paid to the configured seller (standard flow).
+      if (paypalFlow() === "standard") updateBusiness(s.id, { paypalMerchantId: sellerMerchantId() });
+      continue;
+    }
     createBusiness({ id: s.id, handle: s.id, name: s.name, category: s.category, city: s.city, timezone: s.timezone, demo: true });
     saveItems(s.id, s.items);
     updateBusiness(s.id, {
@@ -96,7 +101,7 @@ export function seedDemoBusinesses() {
       hours: s.hours,
       // Demo businesses share one connected PayPal seller: a Sandbox business account already
       // onboarded to Ordina's partner app (DEMO_SELLER_MERCHANT_ID), or a mock one offline.
-      paypalMerchantId: process.env.DEMO_SELLER_MERCHANT_ID || `DEMO-${s.id.toUpperCase()}`,
+      paypalMerchantId: paypalFlow() === "standard" ? sellerMerchantId() : process.env.DEMO_SELLER_MERCHANT_ID || `DEMO-${s.id.toUpperCase()}`,
       paypalEmail: process.env.DEMO_SELLER_EMAIL || "demo-seller@example.com",
       paypalReceivable: true,
       paypalEmailConfirmed: true,

@@ -1,8 +1,9 @@
-// End to end in test mode (scripted agents, PayPal Multiparty mock, in-memory SQLite).
+// End to end in test mode, MULTIPARTY flow (scripted agents, PayPal mock, in-memory SQLite).
 // One describe block per rule in the spec (Ordina docs/AGENT_COMMERCE_SPEC.md).
 import { beforeEach, describe, expect, it } from "vitest";
 
 process.env.MOCK_AI = "1";
+process.env.PAYPAL_FLOW = "multiparty"; // the roadmap flow; test/standard.test.ts covers the default
 process.env.DATA_DIR = ":memory:";
 delete process.env.PAYPAL_CLIENT_ID;
 
@@ -228,7 +229,7 @@ describe("refunds after release (founder, 11 Nov): up to 180 days, from the busi
     const r = await commerce.businessRefund("lumen-hair", booking.id, "5");
     if (!r.ok) throw new Error(r.reason);
     expect(r.booking).toMatchObject({ refunded: "5.00", releaseStatus: "released" });
-    expect((await commerce.customerCancel([s], booking.id, 0)).ok).toBe(false);
+    expect((await commerce.customerCancel([s], booking.id, booking.releaseDueAt + 1)).ok).toBe(false);
   });
 
   it("refuses refunds 180 days after payment", async () => {
