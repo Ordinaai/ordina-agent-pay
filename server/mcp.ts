@@ -11,6 +11,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { askSecretary } from "./agents/secretary.ts";
+import { allowTurn } from "./guard.ts";
 import { offerByPayToken, requestApproval, setBudget } from "./commerce.ts";
 import { searchBusinesses } from "./providers/index.ts";
 import { holdByOrder } from "./store.ts";
@@ -41,7 +42,7 @@ function findBusinesses(query: string) {
     }));
 }
 
-function buildServer(sessionId: string, base: string): McpServer {
+function buildServer(sessionId: string, base: string, ip: string): McpServer {
   const server = new McpServer({ name: "ordina-agent-checkout", version: "0.2.0" });
   setBudget(sessionId, DEFAULT_LIMIT);
 
@@ -80,6 +81,8 @@ function buildServer(sessionId: string, base: string): McpServer {
       },
     },
     async ({ business_id, message, max_price }) => {
+      const gate = allowTurn(ip); // same AI spend limits as the playground chat
+      if (!gate.ok) return { ...json({ error: gate.reason }), isError: true };
       if (max_price !== undefined) setBudget(sessionId, max_price);
       const r = await askSecretary(sessionId, business_id, message);
       if (!r.offer) return json({ reply: r.reply });
@@ -136,7 +139,7 @@ mcpRouter.post("/", async (req, res) => {
     t.onclose = () => {
       if (t.sessionId) transports.delete(t.sessionId);
     };
-    await buildServer(ourSession, baseUrl(req)).connect(t);
+    await buildServer(ourSession, baseUrl(req), req.ip ?? "unknown").connect(t);
     transport = t;
   }
   await transport.handleRequest(req, res, req.body);

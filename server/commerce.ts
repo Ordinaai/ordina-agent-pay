@@ -83,6 +83,8 @@ export async function startPayment(holdId: string, sessionId: string): Promise<P
   if (b.status !== "live" || !canBePaid(b) || !bookableBusiness(b.id)) return { error: `${b.name} cannot take payments right now.` };
   const s = getService(b, hold.serviceId);
   if (!s) return { error: "That item is no longer offered." };
+  const setupProblem = paypal.paymentsMisconfigured();
+  if (setupProblem) return { error: `Payments are not set up on this gateway: ${setupProblem}` };
   const offer = (orderId: string): PaymentOffer => ({
     offer_id: orderId,
     business_id: b.id,
@@ -248,6 +250,23 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
       title: "Not booked: payment not confirmed",
       detail: `status ${cap.status}/${cap.captureStatus}, amount ${cap.currency} ${cap.amount}, payee ${rightPayee ? "ok" : "wrong"}`,
     });
+    // If money moved anyway (a completed capture that failed a check), send it straight back.
+    if (cap.captureStatus === "COMPLETED" && cap.captureId && cap.amount && cap.currency) {
+      try {
+        await paypal.refundCapture(cap.captureId, {
+          sellerMerchantId: cap.payeeMerchantId ?? "",
+          amount: cap.amount,
+          currency: cap.currency,
+          note: "Not booked: the payment did not match the offer.",
+          key: `unconfirmed-${orderId}`,
+        });
+        emit({ sessionId, businessId: b.id, kind: "guardrail", actor: "server", title: "Payment refunded in full", detail: `${cap.currency} ${cap.amount}` });
+        return { ok: false, reason: "PayPal's payment did not match the offer, so nothing was booked and the full amount was refunded." };
+      } catch (err) {
+        console.error("refund of unconfirmed capture failed", orderId, err);
+        return { ok: false, reason: "PayPal's payment did not match the offer, so nothing was booked. A full refund is being arranged." };
+      }
+    }
     return { ok: false, reason: "PayPal did not confirm the full payment to this business, so nothing was booked." };
   }
 

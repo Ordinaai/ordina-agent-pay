@@ -58,6 +58,12 @@ export const paypalFlow = (): "standard" | "multiparty" => (process.env.PAYPAL_F
 /** Standard flow: the one seller every order pays (the Sandbox business account's merchant id). */
 export const sellerMerchantId = (): string => process.env.PAYPAL_SELLER_MERCHANT_ID || "DEMO-SELLER";
 
+/** What stops real PayPal payments from being taken, or null when it is set up. */
+export function paymentsMisconfigured(): string | null {
+  if (MODE === "mock" || paypalFlow() !== "standard") return null;
+  return process.env.PAYPAL_SELLER_MERCHANT_ID ? null : "PAYPAL_SELLER_MERCHANT_ID is not set, so a payment could not be checked against the seller.";
+}
+
 export class PayPalError extends Error {
   constructor(
     public status: number,

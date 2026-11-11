@@ -1,63 +1,81 @@
 # The business side: how it works
 
-Decided with the founder on 11 November 2026. Revised the same day: money moves through PayPal's
-marketplace product (Multiparty) instead of through Ordina's own PayPal account.
+Decided with the founder on 11 November 2026. The hackathon build uses PayPal's standard checkout with
+one Sandbox seller; PayPal's marketplace product (Multiparty) is built behind `PAYPAL_FLOW=multiparty`
+for when PayPal approves Ordina as a partner.
 
-## Sign-up and setup
+## What a business sees (`/business`)
 
-- A business signs up with its name, email and password, category and city. The city sets the time zone.
-- It cannot take agent bookings until **all** of these are done. **Go live** stays grey, and each missing
-  item is named at its own field:
-  1. at least one thing to sell, with a price;
-  2. opening hours (at least one open day);
-  3. a free-cancellation window in hours;
-  4. **PayPal connected**: the owner connects their own PayPal account (PayPal Partner Referrals), and PayPal
-     itself confirms the account can take payments and its email is confirmed. The return from PayPal is
-     never trusted on its own; Ordina reads the account's state from PayPal.
-- What a business sells is one of two kinds:
-  - **Appointment**: has a length in minutes, blocks the calendar, one at a time.
-  - **Pickup item**: has a pickup time and a daily limit set by the owner; any number per time slot, up to the limit.
-- The owner can write notes for its Secretary, **pause** at any time (hidden from customers' agents, no
-  bookings), and change prices and hours at any time (bookings already paid keep their price).
+In this build there is no sign-up. The business view opens a list of the simulated businesses; each one
+shows:
+
+- **Overview:** sales, what PayPal paid to its PayPal account, PayPal's fees, refunds, what's coming up,
+  and its own link.
+- **Bookings:** upcoming, past and cancelled, each with what the customer paid, PayPal's fee, what the
+  business keeps, and the customer as PayPal verified them.
+- **Refund** any amount, or **Cancel** with a refund the owner chooses (0 for a no-show), for 180 days
+  after payment.
+
+Sign-up, setup and going live are built and can be switched on with `BUSINESS_SIGNUP=1` (see below).
+
+## What a business sells
+
+- **Appointment:** has a length in minutes, blocks the calendar, one at a time.
+- **Pickup item:** has a pickup time and a daily limit set by the owner; any number per time slot, up to
+  the limit.
+
+Prices are in USD. A booking keeps the price it was paid at, whatever changes later.
 
 ## How customers find a business
 
-- **Directory**: every live business PayPal can pay is searchable by every customer's agent.
-- **Own link**: `/b/<handle>` opens the customer app with the agent already talking to that business.
+- **Any AI assistant**, through the MCP server at `/mcp`.
+- **The playground** at `/`, our own agent.
+- **Its own link**, `/b/<handle>`, which opens the playground already talking to that business's
+  Secretary.
 
-## Money: PayPal holds, then pays
+## Money (standard checkout, the default)
 
-- **Customers pay the business, not Ordina.** Every PayPal order names the business's own PayPal account as
-  the payee, at the business's listed price, with **delayed disbursement**: after capture, PayPal holds the
-  money.
-- **Release:** 24 hours after the appointment or pickup ends, Ordina asks PayPal to release the money to the
-  business (Referenced Payouts). It counts as released only when PayPal says so.
-- **Fees:** the business pays PayPal's usual fee, read from PayPal's own capture record. Ordina takes nothing
-  per sale today; a fee would be a PayPal platform fee on the order (`PLATFORM_FEE_PERCENT`, 0).
-- **Customers:** identified by PayPal (the verified payer on the capture), and protected by PayPal's buyer
-  protection.
-- **Refunds, for 180 days after payment** (PayPal's own limit):
+- **The customer pays the business's seller account directly** at the business's listed price. PayPal
+  pays the seller at capture; nothing is held and Ordina holds nothing.
+- **A booking exists only** once PayPal reports a `COMPLETED` capture for the exact amount and currency,
+  paid to that seller. If money moved but a check failed, it is refunded in full at once.
+- **Fees:** the business pays PayPal's usual fee, read from PayPal's own capture record. Ordina takes
+  nothing per sale today (`PLATFORM_FEE_PERCENT`, 0).
+- **Customers** are identified by PayPal (the verified payer on the capture) and protected by PayPal's
+  buyer protection.
+- **Refunds, for 180 days after payment:**
   - the **customer** may cancel inside the business's free-cancellation window for a full refund;
-  - the **owner** may cancel or refund any amount they choose, up to what is left.
-  Refunds are made on the business's behalf, on the business's own PayPal capture.
-- While PayPal holds the money, a refund comes out of it. **After release, the owner can still refund**; the money comes out of the business's own PayPal balance (founder, 11 Nov 2026). Ordina holds nothing either way. After 180 days, refunds are settled directly.
-- A booking fully refunded before release has nothing to release.
+  - the **owner** may cancel or refund any amount, up to what is left.
+  Refunds come out of the seller's PayPal balance. After 180 days, refunds are settled directly.
 
-## Why this way
+## Multiparty (roadmap)
 
-- Ordina never holds customer money, so it is not on the hook for chargebacks, money-transmission
-  licences or paying sellers; PayPal checks each business's identity when it connects.
-- The business sees its own money in its own PayPal from the moment the customer pays.
+With `PAYPAL_FLOW=multiparty` each business connects its **own** PayPal account, and:
 
-## Test mode and the demo
+- **Connect PayPal** uses Partner Referrals; the account counts only when PayPal itself reports it can
+  take payments and its email is confirmed. The return from PayPal is never trusted on its own.
+- Each order names the business as payee with **delayed disbursement**: PayPal holds the money.
+- **Release:** 24 hours after the appointment or pickup ends, the gateway asks PayPal to release it
+  (Referenced Payouts). It counts as released only when PayPal says so. PayPal releases held money by
+  itself after 28 days in any case.
+- While PayPal holds the money, a refund comes out of it; after release, out of the business's own PayPal
+  balance.
+- Live use needs PayPal to approve Ordina as a Multiparty partner (BN code, partner merchant id, and the
+  delayed-disbursement and partner-fee features). Which countries' businesses can receive is PayPal's
+  list; a region PayPal doesn't cover is simply not offered.
+
+## Self-serve businesses (`BUSINESS_SIGNUP=1`)
+
+- A business signs up with its name, email and password, category and city (the city sets the time
+  zone).
+- It can't take bookings until **all** of these are done. **Go live** stays grey, and each missing item
+  is named at its own field: something to sell with a price; at least one open day; a free-cancellation
+  window; PayPal connected (Multiparty).
+- The owner can write notes for its Secretary, **pause** at any time, and change prices and hours.
+
+## Test mode
 
 - With no PayPal keys, a mock with the same shapes runs everything, including a labelled stand-in for
-  PayPal's consent page.
-- **Release now** (Overview) exists only outside live mode, because nobody can wait 24 hours in a demo.
-- Four fictional demo businesses are seeded, connected to one demo PayPal seller.
-
-## For live use
-
-- PayPal must approve Ordina as a Multiparty partner (BN code, partner merchant id, the
-  DELAY_FUNDS_DISBURSEMENT and PARTNER_FEE features).
-- Notices to owners and customers (email, WhatsApp).
+  PayPal's consent page. The mock keeps payments in memory, so after a restart, refunds on older
+  bookings fail; real Sandbox keeps them.
+- Four fictional businesses are seeded on one seller account.

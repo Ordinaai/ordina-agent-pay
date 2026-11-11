@@ -8,7 +8,7 @@ import { bizApi } from "./business-api.ts";
 import { cancelDeadline, captureAndConfirm, customerCancel, offerByPayToken, session, setBudget } from "./commerce.ts";
 import { eventsFor, subscribe, type WireEvent } from "./events.ts";
 import { allowTurn, validSession } from "./guard.ts";
-import { mockApprove, paypalClientId, paypalMode } from "./paypal.ts";
+import { mockApprove, paymentsMisconfigured, paypalClientId, paypalMode } from "./paypal.ts";
 import { startReleaseClock } from "./payouts.ts";
 import { connectApi, mockPayPalPages } from "./paypal-connect.ts";
 import { mcpRouter } from "./mcp.ts";
@@ -266,6 +266,8 @@ if (existsSync(dist)) {
 }
 
 if (process.env.NODE_ENV !== "test") startReleaseClock();
+const setupProblem = paymentsMisconfigured();
+if (setupProblem) console.error(`PayPal payments are OFF: ${setupProblem} Set it to the Sandbox business account's Merchant ID.`);
 
 const port = Number(process.env.PORT ?? 8787);
 app.listen(port, () => {

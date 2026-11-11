@@ -76,4 +76,23 @@ describe("standard flow", () => {
     expect(await buyerTurn(s, "I'm Tunde, I need knotless braids")).toMatch(/over your .30 spending limit/);
     expect(commerce.requestApproval(sid(), "MADE-UP")).toHaveProperty("error");
   });
+
+  it("a completed payment that fails a check is refunded in full and not booked (rule 4)", async () => {
+    const { run } = await import("../server/db.ts");
+    const s = sid();
+    await buyerTurn(s, "I'm Ada Obi. A silk press please, as early as possible.");
+    const offerId = pendingOffer(s);
+    paypal.mockApprove(offerId);
+    // The business's seller changes after the offer: the capture now pays someone else.
+    run("UPDATE businesses SET paypal_merchant_id = 'SOMEONE-ELSE' WHERE id = 'lumen-hair'");
+    try {
+      const out = await commerce.captureAndConfirm(s, offerId);
+      expect(out.ok).toBe(false);
+      if (!out.ok) expect(out.reason).toMatch(/full amount was refunded/);
+      expect(store.bookingsForSessions([s])).toEqual([]);
+      expect(eventsFor(s).some((e) => e.title === "Payment refunded in full")).toBe(true);
+    } finally {
+      run("UPDATE businesses SET paypal_merchant_id = ? WHERE id = 'lumen-hair'", paypal.sellerMerchantId());
+    }
+  });
 });
