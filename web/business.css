@@ -486,6 +486,50 @@
 .auth-switch a {
   color: var(--ink-2);
 }
+.demo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.demo-biz {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.demo-biz:hover:not(:disabled) {
+  border-color: var(--ink-2);
+  box-shadow: 0 6px 18px -12px rgba(17, 17, 19, 0.35);
+}
+.demo-biz:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.demo-biz-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.demo-biz-text strong {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.demo-biz-text span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.demo-biz svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
 
 /* setup */
 .checklist {

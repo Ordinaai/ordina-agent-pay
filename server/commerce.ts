@@ -15,6 +15,7 @@
 import { randomBytes } from "node:crypto";
 import { emit } from "./events.ts";
 import * as paypal from "./paypal.ts";
+import { bookableBusiness, providerFor } from "./providers/index.ts";
 import {
   addRefund,
   bookingByOrder,
@@ -79,7 +80,7 @@ export async function startPayment(holdId: string, sessionId: string): Promise<P
   if (!hold || hold.sessionId !== sessionId) return { error: "No such hold in this conversation." };
   if (hold.status !== "held") return { error: `The hold is ${hold.status}; hold the time again first.` };
   const b = getBusiness(hold.businessId)!;
-  if (b.status !== "live" || !canBePaid(b)) return { error: `${b.name} cannot take payments right now.` };
+  if (b.status !== "live" || !canBePaid(b) || !bookableBusiness(b.id)) return { error: `${b.name} cannot take payments right now.` };
   const s = getService(b, hold.serviceId);
   if (!s) return { error: "That item is no longer offered." };
   const offer = (orderId: string): PaymentOffer => ({
@@ -268,6 +269,18 @@ export async function captureAndConfirm(sessionId: string, orderId: string): Pro
     booking = updateBooking(booking.id, { release_status: "released", released_at: Date.now(), release_due_at: Date.now() });
   }
   s.pendingOrderId = undefined;
+
+  // Tell the business's own system. Its hold was a promise, so this should not
+  // fail; if it does, the customer gets every cent back rather than paying for
+  // a booking that does not exist.
+  const provider = providerFor(b.id);
+  const recorded = provider ? await provider.recordBooking(booking) : { ok: false as const, reason: "No provider has this business." };
+  if (!recorded.ok) {
+    emit({ sessionId, businessId: b.id, kind: "guardrail", actor: "server", title: "Business system refused the booking", detail: recorded.reason });
+    const back = await refund(booking, refundableCents(booking), "business");
+    if (back.ok) updateBooking(booking.id, { status: "cancelled", cancelled_by: "business" });
+    return { ok: false, reason: back.ok ? `${b.name} could not take the booking, so PayPal refunded the full amount.` : `${b.name} could not take the booking. A full refund is being arranged.` };
+  }
   emit({
     sessionId,
     businessId: b.id,
@@ -372,6 +385,7 @@ export async function customerCancel(sessionIds: string[], bookingId: string, no
   const out = await refund(bk, refundableCents(bk), "customer");
   if (!out.ok) return out;
   const booking = updateBooking(bk.id, { status: "cancelled", cancelled_by: "customer" });
+  await providerFor(bk.businessId)?.recordCancellation(booking);
   emit({ sessionId: bk.sessionId, businessId: bk.businessId, kind: "booking", actor: "buyer", title: `You cancelled ${bk.ref}` });
   return { ok: true, booking };
 }
@@ -394,6 +408,7 @@ export async function businessCancel(businessId: string, bookingId: string, refu
     current = out.booking;
   }
   const booking = updateBooking(current.id, { status: "cancelled", cancelled_by: "business" });
+  await providerFor(bk.businessId)?.recordCancellation(booking);
   emit({
     sessionId: bk.sessionId,
     businessId: bk.businessId,

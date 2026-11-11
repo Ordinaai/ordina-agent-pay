@@ -13,7 +13,8 @@ import { startReleaseClock } from "./payouts.ts";
 import { connectApi, mockPayPalPages } from "./paypal-connect.ts";
 import { mcpRouter } from "./mcp.ts";
 import { seedDemoBusinesses } from "./seed.ts";
-import { bookingsForSessions, getBusiness, getBusinessByHandle, liveBusinesses, type Booking } from "./store.ts";
+import { bookableBusiness, bookableBusinesses } from "./providers/index.ts";
+import { bookingsForSessions, getBusiness, getBusinessByHandle, type Booking } from "./store.ts";
 
 seedDemoBusinesses();
 
@@ -33,7 +34,7 @@ app.get("/api/config", (_req, res) => {
     model: aiMode() === "claude" ? MODEL : null,
     paypal: paypalMode(),
     paypalClientId: paypalMode() === "mock" ? null : paypalClientId(),
-    businesses: liveBusinesses().map((b) => ({ id: b.id, handle: b.handle, name: b.name, city: b.city, timezone: b.timezone })),
+    businesses: bookableBusinesses().map((b) => ({ id: b.id, handle: b.handle, name: b.name, city: b.city, timezone: b.timezone })),
   });
 });
 
@@ -51,7 +52,7 @@ app.get("/api/b/:handle", (req, res) => {
       category: b.category,
       city: b.city,
       about: b.about,
-      live: b.status === "live",
+      live: !!bookableBusiness(b.id),
       sells: b.services.map((s) => ({ name: s.name, kind: s.kind, price: s.price, minutes: s.kind === "appointment" ? s.minutes : null })),
     },
   });
@@ -59,8 +60,8 @@ app.get("/api/b/:handle", (req, res) => {
 
 app.post("/api/pin", (req, res) => {
   const { session: sid, businessId } = req.body ?? {};
-  const b = typeof businessId === "string" ? getBusiness(businessId) : undefined;
-  if (!validSession(sid) || !b || b.status !== "live") {
+  const b = typeof businessId === "string" ? bookableBusiness(businessId) : undefined;
+  if (!validSession(sid) || !b) {
     res.status(400).json({ error: "Bad request" });
     return;
   }

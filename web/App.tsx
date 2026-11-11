@@ -63,7 +63,7 @@ type Pinned = {
   live: boolean;
   sells: Array<{ name: string; kind: "appointment" | "pickup"; price: string; minutes: number | null }>;
 };
-type View = { name: "chat"; id: string | null } | { name: "bookings" } | { name: "settings" };
+type View = { name: "chat"; id: string | null } | { name: "bookings" } | { name: "settings" } | { name: "connect" };
 
 const SUGGESTIONS = [
   "Book me a silk press in Lagos on Saturday",
@@ -238,7 +238,7 @@ export function App({ handle }: { handle?: string }) {
       <aside className="side" aria-label="Navigation">
         <div className="side-top">
           <span className="brand">
-            <Mark /> Ordina
+            <Mark /> Ordina <em className="for">Agent Checkout</em>
           </span>
         </div>
         <button className="side-new" onClick={() => go({ name: "chat", id: null })}>
@@ -251,6 +251,9 @@ export function App({ handle }: { handle?: string }) {
           <button className={view.name === "settings" ? "on" : ""} onClick={() => go({ name: "settings" })}>
             <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" /> Spending limit
           </button>
+          <button className={view.name === "connect" ? "on" : ""} onClick={() => go({ name: "connect" })}>
+            <Icon d="M9 15l6-6M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1" /> Use from Claude
+          </button>
         </nav>
         <div className="side-label">Chats</div>
         <div className="side-chats">
@@ -262,7 +265,7 @@ export function App({ handle }: { handle?: string }) {
           ))}
         </div>
         <a className="side-biz" href="/business">
-          <Icon d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" /> Ordina for businesses
+          <Icon d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" /> Business view
         </a>
         <div className="side-foot">
           <span className="me">G</span>
@@ -280,7 +283,7 @@ export function App({ handle }: { handle?: string }) {
             <Icon d="M4 7h16M4 12h16M4 17h16" />
           </button>
           <span className="top-title">
-            {view.name === "bookings" ? "Bookings" : view.name === "settings" ? "Spending limit" : "Your agent"}
+            {view.name === "bookings" ? "Bookings" : view.name === "settings" ? "Spending limit" : view.name === "connect" ? "Use from Claude" : "Your agent"}
           </span>
           {config && (
             <span className="env" title="Test mode: no real money moves">
@@ -309,6 +312,7 @@ export function App({ handle }: { handle?: string }) {
         )}
         {view.name === "bookings" && <BookingsView chats={chats} openChat={(id) => go({ name: "chat", id })} />}
         {view.name === "settings" && <LimitView limit={limit} setLimit={setLimit} />}
+        {view.name === "connect" && <ConnectView />}
       </main>
     </div>
   );
@@ -781,6 +785,48 @@ function BookingsView({ chats, openChat }: { chats: Chat[]; openChat: (id: strin
             {msg?.id === b.id && <p className="bk-msg">{msg.text}</p>}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- the same checkout from any MCP client ----------
+function ConnectView() {
+  const url = `${location.origin}/mcp`;
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="page">
+      <div className="page-inner narrow">
+        <h2>Use from Claude</h2>
+        <p className="page-sub">
+          The same checkout works from any AI assistant that speaks MCP. Add this address as a custom connector, then ask it to book something.
+        </p>
+        <div className="linkbox">
+          <code>{url}</code>
+          <button
+            className="btn-line"
+            onClick={() =>
+              navigator.clipboard.writeText(url).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              })
+            }
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+        <ul className="promises">
+          <li>
+            <b>find_businesses</b> searches the businesses you can book and pay, with their prices and cancellation policy.
+          </li>
+          <li>
+            <b>message_business</b> talks to the business's Secretary. When it holds a time, you get one PayPal link to approve.
+          </li>
+          <li>
+            <b>booking_status</b> tells the assistant when PayPal has confirmed the payment and the booking exists.
+          </li>
+        </ul>
+        <p className="fine">No tool can pay. The assistant gives you the link, and nothing is charged until you approve in PayPal.</p>
       </div>
     </div>
   );

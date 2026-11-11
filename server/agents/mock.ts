@@ -3,7 +3,8 @@
 // whole money path (hold, PayPal order, approval, capture, refund) can be
 // built and tested without spending anything on a model.
 import type { AgentTool } from "./loop.ts";
-import { addDays, availability, localNow, weekdayOf, type Booking, type Business } from "../store.ts";
+import { providerFor } from "../providers/index.ts";
+import { addDays, localNow, weekdayOf, type Booking, type Business } from "../store.ts";
 
 type OnTool = (name: string, input: unknown, out: unknown) => void;
 
@@ -64,7 +65,7 @@ function pickDate(b: Business, lower: string, svcId: string): string | undefined
   for (let d = start; d < 10; d++) {
     const date = addDays(today, d);
     if (dayIdx >= 0 && weekdayOf(date) !== dayIdx) continue;
-    if (availability(b.id, svcId, date).length) return date;
+    if (providerFor(b.id)?.availability(b.id, svcId, date).length) return date;
   }
   return undefined;
 }

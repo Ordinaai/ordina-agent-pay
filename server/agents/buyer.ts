@@ -5,7 +5,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { requestApproval, session } from "../commerce.ts";
 import { emit } from "../events.ts";
-import { getBusiness, liveBusinesses, type Booking } from "../store.ts";
+import { searchBusinesses } from "../providers/index.ts";
+import { getBusiness, type Booking } from "../store.ts";
 
 const pinnedName = (id?: string) => (id ? getBusiness(id)?.name : undefined);
 import { askSecretary, noteForSecretary } from "./secretary.ts";
@@ -33,14 +34,7 @@ const histories = new Map<string, Anthropic.Beta.BetaMessageParam[]>();
 const busy = new Set<string>();
 
 function findBusinesses(query: string, pinned?: string) {
-  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
-  const scored = liveBusinesses().map((b) => {
-    const hay = [b.name, b.category, b.city, b.about, ...b.services.map((s) => s.name)].join(" ").toLowerCase();
-    const score = words.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0) + (b.id === pinned ? 100 : 0);
-    return { b, score };
-  }).sort((a, z) => z.score - a.score);
-  const hits = scored.filter((x) => x.score > 0);
-  return (hits.length ? hits : scored).map(({ b }) => ({
+  return searchBusinesses(query, pinned).map((b) => ({
     business_id: b.id,
     name: b.name,
     category: b.category,

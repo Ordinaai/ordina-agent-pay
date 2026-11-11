@@ -4,8 +4,9 @@ import express, { type Request, type Response } from "express";
 import { allowAuthTry, checkPassword, endSession, hashPassword, ownerOf, startSession } from "./auth.ts";
 import { CITIES } from "./cities.ts";
 import { businessCancel, businessGetsCents, businessRefund, canRefund, refundableCents } from "./commerce.ts";
-import { paypalMode } from "./paypal.ts";
+import { paypalFlow, paypalMode } from "./paypal.ts";
 import { runReleases } from "./payouts.ts";
+import { bookableBusinesses } from "./providers/index.ts";
 import {
   createBusiness,
   fromCents,
@@ -22,6 +23,21 @@ import {
 } from "./store.ts";
 
 export const bizApi = express.Router();
+
+/**
+ * Sign-up and setup are off by default: the gateway serves businesses through
+ * providers, and this demo's business view shows the simulated ones. Set
+ * BUSINESS_SIGNUP=1 to open sign-up, sign-in and editing (self-serve businesses).
+ */
+export const signupOpen = () => process.env.BUSINESS_SIGNUP === "1";
+const SELF_SERVE = new Set(["POST /signup", "POST /login", "PUT /profile", "PUT /items", "POST /status"]);
+bizApi.use((req, res, next) => {
+  if (!signupOpen() && SELF_SERVE.has(`${req.method} ${req.path}`)) {
+    res.status(403).json({ error: "This demo shows simulated businesses only." });
+    return;
+  }
+  next();
+});
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -115,6 +131,30 @@ bizApi.post("/login", async (req, res) => {
   res.json({ business: ownerView(getBusiness(b.id)!) });
 });
 
+// ---------- the simulated businesses, open to anyone trying the demo ----------
+const demoBusinesses = () => bookableBusinesses().filter((b) => b.demo);
+
+bizApi.get("/demos", (_req, res) => {
+  res.json({
+    signup: signupOpen(),
+    businesses: demoBusinesses().map((b) => ({ id: b.id, name: b.name, category: b.category, city: b.city, link: `/b/${b.handle}` })),
+  });
+});
+
+bizApi.post("/demo", (req, res) => {
+  if (!allowAuthTry(ip(req))) {
+    res.status(429).json({ error: "Too many tries. Wait a few minutes." });
+    return;
+  }
+  const b = demoBusinesses().find((x) => x.id === req.body?.businessId);
+  if (!b) {
+    res.status(404).json({ error: "No such demo business." });
+    return;
+  }
+  startSession(res, b.id);
+  res.json({ business: ownerView(b) });
+});
+
 bizApi.post("/logout", (req, res) => {
   endSession(req, res);
   res.json({ ok: true });
@@ -122,7 +162,7 @@ bizApi.post("/logout", (req, res) => {
 
 bizApi.get("/me", (req, res) => {
   const b = need(req, res);
-  if (b) res.json({ business: ownerView(b), cities: Object.keys(CITIES), demoPayouts: paypalMode() !== "live" });
+  if (b) res.json({ business: ownerView(b), cities: Object.keys(CITIES), demoPayouts: paypalMode() !== "live", selfServe: signupOpen(), flow: paypalFlow() });
 });
 
 // ---------- setup ----------

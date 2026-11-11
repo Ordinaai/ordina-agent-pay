@@ -12,7 +12,8 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { askSecretary } from "./agents/secretary.ts";
 import { offerByPayToken, requestApproval, setBudget } from "./commerce.ts";
-import { holdByOrder, liveBusinesses } from "./store.ts";
+import { searchBusinesses } from "./providers/index.ts";
+import { holdByOrder } from "./store.ts";
 
 const DEFAULT_LIMIT = 200; // USD, when the assistant passes no limit
 
@@ -20,18 +21,9 @@ const baseUrl = (req: Request) => process.env.PUBLIC_URL?.replace(/\/$/, "") || 
 const json = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
 
 function findBusinesses(query: string) {
-  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
-  // a word matches a business word when one starts the other ("haircut" finds "hair", "cakes" finds "cake")
-  const close = (q: string, h: string) => h.length > 2 && (h.startsWith(q) || (h.length > 3 && q.startsWith(h)));
-  const scored = liveBusinesses().map((b) => {
-    const hay = [b.name, b.category, b.city, b.about, ...b.services.map((s) => s.name)].join(" ").toLowerCase().split(/[^a-z0-9]+/);
-    return { b, score: words.filter((q) => hay.some((h) => close(q, h))).length };
-  });
-  const hits = scored.filter((x) => x.score > 0);
-  return (hits.length ? hits : scored) // nothing matched: show everything rather than nothing
-    .sort((a, z) => z.score - a.score)
+  return searchBusinesses(query)
     .slice(0, 8)
-    .map(({ b }) => ({
+    .map((b) => ({
       business_id: b.id,
       name: b.name,
       category: b.category,

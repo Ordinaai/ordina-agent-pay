@@ -5,7 +5,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { startPayment, type PaymentOffer } from "../commerce.ts";
 import { emit } from "../events.ts";
-import { addDays, availability, createHold, getBusiness, localNow, weekdayOf, type Business } from "../store.ts";
+import { providerFor, type Provider } from "../providers/index.ts";
+import { addDays, localNow, weekdayOf, type Business } from "../store.ts";
 import { aiMode, runAgent, tool } from "./loop.ts";
 import { mockSecretaryTurn } from "./mock.ts";
 
@@ -34,7 +35,7 @@ function systemFor(b: Business): string {
   ].join("\n");
 }
 
-function toolsFor(b: Business, sessionId: string) {
+function toolsFor(b: Business, p: Provider, sessionId: string) {
   return [
     tool({
       name: "list_services",
@@ -51,7 +52,7 @@ function toolsFor(b: Business, sessionId: string) {
         "Free start times (appointments) or pickup times (pickup items) for one item on one date (YYYY-MM-DD, business local time). Up to 14 days ahead.",
       schema: z.strictObject({ service_id: z.string(), date: z.string() }),
       run: ({ service_id, date }) => {
-        const slots = availability(b.id, service_id, date);
+        const slots = p.availability(b.id, service_id, date);
         const open = b.hours[weekdayOf(date)];
         return { date, weekday: DAY[weekdayOf(date)], open: !!open, free_start_times: slots };
       },
@@ -67,7 +68,7 @@ function toolsFor(b: Business, sessionId: string) {
         customer_name: z.string(),
       }),
       run: ({ service_id, date, time, customer_name }) => {
-        const h = createHold({ businessId: b.id, serviceId: service_id, date, time, customerName: customer_name, sessionId });
+        const h = p.hold({ businessId: b.id, serviceId: service_id, date, time, customerName: customer_name, sessionId });
         if ("error" in h) return h;
         return { hold_id: h.id, service_id, date, time, expires_in_minutes: 15 };
       },
@@ -93,8 +94,9 @@ export type SecretaryReply = {
 
 /** One message from the customer's agent to a business; returns the Secretary's answer. */
 export async function askSecretary(sessionId: string, businessId: string, message: string): Promise<SecretaryReply> {
-  const b = getBusiness(businessId);
-  if (!b) return { reply: `No business with id ${businessId}.` };
+  const p = providerFor(businessId);
+  const b = p?.business(businessId);
+  if (!p || !b) return { reply: `No business with id ${businessId}.` };
   const now = localNow(b.timezone);
   emit({ sessionId, businessId, kind: "buyer_to_business", actor: "buyer", title: `To ${b.name}`, detail: message });
 
@@ -106,7 +108,7 @@ export async function askSecretary(sessionId: string, businessId: string, messag
 
   let reply: string;
   if (aiMode() === "mock") {
-    const r = await mockSecretaryTurn(b, sessionId, message, toolsFor(b, sessionId), (name, input, out) => {
+    const r = await mockSecretaryTurn(b, sessionId, message, toolsFor(b, p, sessionId), (name, input, out) => {
       emit({ sessionId, businessId, kind: "tool", actor: "secretary", title: name, detail: JSON.stringify(input), data: { result: out } });
       capturePayment(name, out);
     });
@@ -121,7 +123,7 @@ export async function askSecretary(sessionId: string, businessId: string, messag
     });
     const r = await runAgent({
       system: systemFor(b),
-      tools: toolsFor(b, sessionId),
+      tools: toolsFor(b, p, sessionId),
       messages: history,
       maxIterations: 6,
       onToolCall: (name, input, out) => {

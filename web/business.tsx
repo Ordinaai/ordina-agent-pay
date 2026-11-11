@@ -54,6 +54,10 @@ type Booking = {
 };
 type Totals = { sales: string; refunded: string; fees: string; platformFees: string; held: string; released: string };
 type Page = "overview" | "bookings" | "setup";
+type Flow = "standard" | "multiparty";
+// How money moves, from the server: standard = paid to the business at capture;
+// multiparty = PayPal holds it, then releases it after the booking.
+let FLOW: Flow = "standard";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -81,12 +85,15 @@ export function BusinessApp() {
   const [me, setMe] = useState<Biz | null | undefined>(undefined);
   const [cities, setCities] = useState<string[]>([]);
   const [demoPayouts, setDemoPayouts] = useState(false);
+  const [selfServe, setSelfServe] = useState(false);
   const [page, setPage] = useState<Page>("overview");
   const [drawer, setDrawer] = useState(false);
 
   const load = useCallback(() => {
-    api<{ business: Biz; cities: string[]; demoPayouts: boolean }>("/api/biz/me")
+    api<{ business: Biz; cities: string[]; demoPayouts: boolean; selfServe: boolean; flow: Flow }>("/api/biz/me")
       .then((r) => {
+        FLOW = r.flow;
+        setSelfServe(r.selfServe);
         setMe(r.business);
         setCities(r.cities);
         setDemoPayouts(r.demoPayouts);
@@ -100,12 +107,12 @@ export function BusinessApp() {
     if (paypalNotice) history.replaceState(null, "", "/business");
   }, [paypalNotice]);
   useEffect(() => {
-    if (me && (me.status === "setup" || paypalNotice)) setPage("setup");
+    if (me && selfServe && (me.status === "setup" || paypalNotice)) setPage("setup");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.id]);
+  }, [me?.id, selfServe]);
 
   if (me === undefined) return <div className="center-load"><span className="spin" /></div>;
-  if (me === null) return <AuthScreen onIn={(b) => { setMe(b); load(); }} />;
+  if (me === null) return <DemoPicker onIn={(b) => { setMe(b); load(); }} />;
 
   const go = (p: Page) => {
     setPage(p);
@@ -137,22 +144,24 @@ export function BusinessApp() {
           <button className={page === "bookings" ? "on" : ""} onClick={() => go("bookings")}>
             <Icon d="M7 3v3M17 3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" /> Bookings
           </button>
-          <button className={page === "setup" ? "on" : ""} onClick={() => go("setup")}>
-            <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" /> Setup
-            {!ready && <span className="dot-warn" aria-label="Setup not finished" />}
-          </button>
+          {selfServe && (
+            <button className={page === "setup" ? "on" : ""} onClick={() => go("setup")}>
+              <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" /> Setup
+              {!ready && <span className="dot-warn" aria-label="Setup not finished" />}
+            </button>
+          )}
         </nav>
         <div className="side-spacer" />
         <div className="side-foot">
           <span className="me biz-me">{me.name.slice(0, 1).toUpperCase()}</span>
           <div>
             <strong>{me.name}</strong>
-            <span>{me.email}</span>
+            <span>{selfServe ? me.email : `${me.city}, simulated business`}</span>
           </div>
           <button
             className="icon-btn show"
-            aria-label="Sign out"
-            title="Sign out"
+            aria-label={selfServe ? "Sign out" : "Switch business"}
+            title={selfServe ? "Sign out" : "Switch business"}
             onClick={async () => {
               await api("/api/biz/logout", "POST").catch(() => {});
               setMe(null);
@@ -171,7 +180,7 @@ export function BusinessApp() {
           </button>
           <span className="top-title">{page === "overview" ? "Overview" : page === "bookings" ? "Bookings" : "Setup"}</span>
           <span className={`status-pill s-${me.status}`}>{me.status === "live" ? "Live" : me.status === "paused" ? "Paused" : "Not live yet"}</span>
-          {me.status === "live" ? (
+          {!selfServe ? null : me.status === "live" ? (
             <button className="btn-line" onClick={() => setStatus("paused")}>
               Pause
             </button>
@@ -183,13 +192,76 @@ export function BusinessApp() {
         </header>
         {page === "overview" && <Overview me={me} demoPayouts={demoPayouts} openSetup={() => go("setup")} openBookings={() => go("bookings")} />}
         {page === "bookings" && <Bookings />}
-        {page === "setup" && <Setup me={me} cities={cities} onSaved={setMe} paypalNotice={paypalNotice} />}
+        {page === "setup" && selfServe && <Setup me={me} cities={cities} onSaved={setMe} paypalNotice={paypalNotice} />}
       </main>
     </div>
   );
 }
 
-// ---------- sign up / sign in ----------
+// ---------- the simulated businesses (default: no sign-up in this build) ----------
+type Demo = { id: string; name: string; category: string; city: string; link: string };
+
+function DemoPicker({ onIn }: { onIn: (b: Biz) => void }) {
+  const [state, setState] = useState<{ signup: boolean; businesses: Demo[] } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    api<{ signup: boolean; businesses: Demo[] }>("/api/biz/demos")
+      .then(setState)
+      .catch(() => setState({ signup: false, businesses: [] }));
+  }, []);
+  if (!state) return <div className="center-load"><span className="spin" /></div>;
+  if (state.signup) return <AuthScreen onIn={onIn} />;
+
+  const open = async (id: string) => {
+    setBusy(id);
+    setMsg(null);
+    try {
+      onIn((await api<{ business: Biz }>("/api/biz/demo", "POST", { businessId: id })).business);
+    } catch (e) {
+      setMsg((e as Error).message);
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="auth">
+      <div className="auth-card">
+        <span className="brand">
+          <Mark /> Ordina <em className="for">Agent Checkout</em>
+        </span>
+        <h1>See it from the business side</h1>
+        <p className="auth-sub">
+          These are simulated businesses that take PayPal Sandbox payments. Open one to see what customers' agents booked, what PayPal paid,
+          and to refund or cancel.
+        </p>
+        <div className="demo-list">
+          {state.businesses.map((d) => (
+            <button key={d.id} className="demo-biz" disabled={!!busy} onClick={() => open(d.id)}>
+              <span className="me biz-me">{d.name.slice(0, 1)}</span>
+              <span className="demo-biz-text">
+                <strong>{d.name}</strong>
+                <span>
+                  {d.category}, {d.city}
+                </span>
+              </span>
+              <Icon d="M9 6l6 6-6 6" />
+            </button>
+          ))}
+          {state.businesses.length === 0 && <p className="muted-s">No simulated businesses are running.</p>}
+        </div>
+        {msg && <p className="err">{msg}</p>}
+        <p className="auth-switch">
+          <a className="linkish" href="/">
+            Book as a customer
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------- sign up / sign in (BUSINESS_SIGNUP=1) ----------
 function AuthScreen({ onIn }: { onIn: (b: Biz) => void }) {
   const [mode, setMode] = useState<"signup" | "login">("signup");
   const [cities, setCities] = useState<string[]>([]);
@@ -349,15 +421,25 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
               : "Not live yet."}
         </p>
 
-        <div className="stats">
-          <Stat label="Sales" value={usd(data?.totals.sales)} />
-          <Stat label="Held by PayPal for you" value={usd(data?.totals.held)} hint="Released 24 hours after each booking" />
-          <Stat label="Released to your PayPal" value={usd(data?.totals.released)} hint={me.paypal.email ?? "Connect PayPal"} />
-          <Stat label="Refunded" value={usd(data?.totals.refunded)} />
-        </div>
+        {FLOW === "standard" ? (
+          <div className="stats">
+            <Stat label="Sales" value={usd(data?.totals.sales)} />
+            <Stat label="Paid to your PayPal" value={usd(data?.totals.released)} hint="After PayPal's fees and refunds" />
+            <Stat label="PayPal fees" value={usd(data?.totals.fees)} />
+            <Stat label="Refunded" value={usd(data?.totals.refunded)} />
+          </div>
+        ) : (
+          <div className="stats">
+            <Stat label="Sales" value={usd(data?.totals.sales)} />
+            <Stat label="Held by PayPal for you" value={usd(data?.totals.held)} hint="Released 24 hours after each booking" />
+            <Stat label="Released to your PayPal" value={usd(data?.totals.released)} hint={me.paypal.email ?? "Connect PayPal"} />
+            <Stat label="Refunded" value={usd(data?.totals.refunded)} />
+          </div>
+        )}
         <p className="fine">
-          Customers pay straight into your PayPal account; PayPal holds each payment until 24 hours after the booking, then releases it to
-          you. PayPal fees so far {usd(data?.totals.fees)}.{" "}
+          {FLOW === "standard"
+            ? "Customers pay straight into your PayPal account the moment they approve. You can refund any amount for 180 days, from your PayPal balance. "
+            : `Customers pay straight into your PayPal account; PayPal holds each payment until 24 hours after the booking, then releases it to you. PayPal fees so far ${usd(data?.totals.fees)}. `}
           {Number(data?.totals.platformFees) > 0 ? `Ordina fees ${usd(data?.totals.platformFees)}.` : "Ordina takes no cut of your sales."}
         </p>
 
@@ -412,7 +494,7 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
           </section>
         </div>
 
-        {demoPayouts && (
+        {demoPayouts && FLOW === "multiparty" && (
           <section className="card demo">
             <div className="card-head">
               <h3>Release held money, test mode</h3>
@@ -541,7 +623,11 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
       <div className="brow-side">
         <span className="brow-amt">{usd(b.businessGets)}</span>
         <span className={`payout p-${b.releaseStatus}`}>
-          {b.releaseStatus === "held" ? `Held by PayPal, released ${when(b.releaseDueAt)}` : RELEASE_TEXT[b.releaseStatus]}
+          {b.releaseStatus === "held"
+            ? `Held by PayPal, released ${when(b.releaseDueAt)}`
+            : FLOW === "standard" && b.releaseStatus === "released"
+              ? "Paid to your PayPal"
+              : RELEASE_TEXT[b.releaseStatus]}
         </span>
         {b.releaseNote && <span className="brow-note">{b.releaseNote}</span>}
         {!mode && canMoney && (
@@ -573,7 +659,9 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
                 ? `At most $${b.refundable}.`
                 : mode === "cancel"
                   ? `Up to $${b.refundable}. Enter 0 to keep it all, for example for a no-show.`
-                  : b.releaseStatus === "released"
+                  : FLOW === "standard"
+                    ? `Up to $${b.refundable}. It comes out of your PayPal balance.`
+                    : b.releaseStatus === "released"
                     ? `Up to $${b.refundable}. PayPal has released this payment, so the refund comes out of your PayPal balance.`
                     : `Up to $${b.refundable}. Comes out of the money PayPal holds for you.`}
             </span>
