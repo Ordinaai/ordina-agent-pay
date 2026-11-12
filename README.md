@@ -11,7 +11,7 @@ AI assistants can already find a hair salon or a physio. They can't safely book 
 
 Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. Ordina runs AI Secretaries for businesses; this is how other people's agents will book and pay them.
 
-> Live demo: _added once deployed_ · Video: _added once published_
+> **Live demo:** https://ordina-agent-checkout.onrender.com (PayPal Sandbox: pay by card with PayPal's test Visa 4012 8888 8888 1881, any future date, any CVV) · **Video:** _added once published_
 
 ![Ordina Agent Checkout: ask your agent, it agrees the booking with the business, you approve one PayPal payment](docs/screenshot.jpg)
 
@@ -26,9 +26,9 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 
 ## Try it from Claude
 
-1. Add a custom connector in Claude with the address `https://<your deploy>/mcp`.
+1. Add a custom connector in Claude with the address `https://ordina-agent-checkout.onrender.com/mcp` (or `https://<your deploy>/mcp`).
 2. Ask: *"Book me a silk press in Lagos tomorrow morning, my name is Ada, up to $50."*
-3. Claude finds Lumen Hair Studio, agrees a time with its Secretary, and gives you a pay link. Open it, approve with a PayPal Sandbox buyer account, and ask Claude whether it's booked.
+3. Claude finds Lumen Hair Studio, agrees a time with its Secretary, and gives you a pay link. Open it, pay by card (no PayPal account needed) or with a PayPal Sandbox buyer account, and ask Claude whether it's booked.
 
 Without Claude: `node node_modules/tsx/dist/cli.mjs scripts/mcp-probe.mts` acts as an outside agent against a local server and prints the offer and pay link.
 
