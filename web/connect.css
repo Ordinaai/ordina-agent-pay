@@ -1,93 +1,60 @@
-/* The front door (/): a night hero with the handshake, the assistant picker (the page's job),
-   the safety strip, the business band and a small footer. The picker is also shown compact
-   inside the playground. Tokens, buttons, badges, the brand and motion come from system.css.
+/* The front door (/), "Ordina calm": a light hero with the handshake, the assistant picker (the page's
+   job), the safety cards, the business panel and a small footer. The picker is also shown compact
+   inside the playground. Tokens, buttons, the brand, .eyebrow and .rise come from system.css.
    Every class here starts with cx-. */
 
 .cx {
-  --on: rgba(255, 255, 255, 0.98);
-  --on-soft: rgba(255, 255, 255, 0.74);
-  --on-mute: rgba(255, 255, 255, 0.56);
-  --sec-y: clamp(64px, 9vw, 128px);
-  --cx-gap: clamp(16px, 2.2vw, 40px);
+  --sec-y: clamp(80px, 10vw, 150px);
+  --cx-gap: clamp(20px, 2.6vw, 48px);
   min-height: 100%;
   background: var(--bg);
+  color: var(--ink);
 }
-.cx h2,
-.cx h3,
-.cx h4,
-.cx-picker h3,
-.cx-picker h4 {
+/* zero-specificity reset, so every component rule below still sets its own spacing */
+:where(.cx, .cx-picker) :where(h1, h2, h3, h4, p) {
   margin: 0;
 }
-.cx .on-night :focus-visible {
-  outline-color: var(--teal-400);
+
+/* sections below the fold wait to rise until they scroll into view */
+.cx-reveal:not(.seen) .rise {
+  animation-play-state: paused;
 }
 
-/* ---------- 1. the night hero ---------- */
+/* ---------- 1. the hero ---------- */
 .cx-hero {
   position: relative;
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  min-height: min(100vh, 900px);
   padding: 0 var(--gutter);
-  background: var(--night);
-  color: var(--on);
+  background: var(--bg);
   overflow: hidden;
 }
-/* a hairline grid that only shows behind the stage, and one soft glow under it */
-.cx-hero::before,
-.cx-hero::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  pointer-events: none;
-}
-.cx-hero::before {
-  inset: 0;
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 64px 64px;
-  background-position: right var(--gutter) top 0;
-  -webkit-mask-image: radial-gradient(62% 72% at 72% 52%, rgba(0, 0, 0, 1), transparent 76%);
-  mask-image: radial-gradient(62% 72% at 72% 52%, rgba(0, 0, 0, 1), transparent 76%);
-}
-.cx-hero::after {
-  top: 50%;
-  right: -8%;
-  width: 78%;
-  aspect-ratio: 1.25;
-  transform: translateY(-46%);
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--teal-400) 15%, transparent), transparent);
-}
-
 .cx-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 76px;
+  min-height: 84px;
 }
 .cx-brand {
-  color: var(--on);
   border-radius: var(--r);
 }
 .cx-nav {
   display: flex;
   align-items: center;
-  gap: clamp(16px, 2.4vw, 32px);
+  gap: clamp(20px, 2.6vw, 36px);
 }
 .cx-nav a {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 500;
-  color: var(--on-soft);
+  color: var(--ink-2);
   text-decoration: none;
-  border-radius: 4px;
-  transition: color 0.16s;
+  border-radius: 6px;
+  transition: color 0.25s var(--ease-soft);
 }
 .cx-nav a:hover {
-  color: var(--on);
+  color: var(--teal-700);
 }
 
 .cx-hero-grid {
@@ -96,87 +63,86 @@
   grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: var(--cx-gap);
   align-items: center;
-  padding: clamp(20px, 3vh, 40px) 0 clamp(48px, 9vh, 104px);
+  padding: clamp(24px, 4vh, 56px) 0 clamp(56px, 6vw, 96px);
 }
 .cx-pitch {
-  grid-column: span 5;
+  grid-column: span 6;
   min-width: 0;
-}
-/* the stage keeps the room the handshake needs at its tallest, so the page never jumps while it plays */
-.cx-stage {
-  grid-column: span 7;
-  align-self: start;
-  justify-self: end;
-  display: grid;
-  width: 100%;
-  max-width: 760px;
-  min-width: 0;
-  min-height: 680px;
-}
-.cx-pitch .eyebrow {
-  color: var(--teal-400);
+  padding-bottom: 24px;
 }
 .cx-pitch h1 {
-  margin-top: clamp(18px, 1.8vw, 28px);
+  margin-top: 20px;
   font-family: var(--display);
-  font-size: clamp(40px, 5.4vw, 84px);
+  font-size: clamp(44px, 5.2vw, 84px);
   font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.035em;
-  color: var(--on);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: var(--ink);
 }
 .cx-pitch h1 span {
   display: block;
   text-wrap: balance;
 }
 .cx-pitch h1 .cx-h1-b {
-  color: var(--teal-400);
+  color: var(--teal-700);
 }
 .cx-sub {
-  margin-top: clamp(22px, 2.2vw, 34px);
-  max-width: 46ch;
-  font-size: 18px;
-  line-height: 1.55;
-  color: var(--on-soft);
+  margin-top: 28px;
+  max-width: 30em;
+  font-size: clamp(17px, 1.25vw, 18px);
+  line-height: 1.6;
+  color: var(--ink-2);
   text-wrap: pretty;
 }
 .cx-cta {
-  margin-top: clamp(28px, 2.8vw, 40px);
+  margin-top: 40px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px 26px;
+  gap: 12px;
 }
-.cx-cta .btn-night,
-.cx-band .btn-night {
-  padding: 13px 20px;
+.cx-cta .btn-dark,
+.cx-cta .btn-line {
+  min-height: 50px;
+  padding: 0 22px;
   font-size: 15px;
 }
-.cx-quiet {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--on);
-  text-decoration: none;
-  border-radius: 4px;
-}
-.cx-quiet .ic {
+.cx-cta .btn-line .ic {
   width: 16px;
   height: 16px;
-  color: var(--teal-400);
-  transition: transform 0.2s var(--ease);
+  color: var(--teal-700);
+  transition: transform 0.3s var(--ease-soft);
 }
-.cx-quiet:hover .ic {
+.cx-cta .btn-line:hover .ic {
   transform: translateX(3px);
 }
 .cx-sandbox {
-  margin-top: clamp(24px, 2.4vw, 36px);
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.01em;
-  color: var(--on-mute);
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* the stage keeps the room the handshake needs at its tallest, so the page never jumps while it plays */
+.cx-stage {
+  position: relative;
+  grid-column: span 6;
+  justify-self: end;
+  display: grid;
+  align-content: start;
+  width: 100%;
+  max-width: 720px;
+  min-width: 0;
+  min-height: 750px; /* measured: the handshake is 730 to 747px at its tallest from 1280 to 1699 wide */
+}
+/* one soft teal wash behind the handshake */
+.cx-stage::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -14% -18% -10%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--teal-100) 70%, transparent), transparent);
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 /* ---------- sections ---------- */
@@ -185,174 +151,151 @@
 }
 .cx-connect {
   background: var(--bg);
+  scroll-margin-top: 0;
 }
 .cx-connect:focus {
   outline: none;
 }
-
-/* ---------- 2. the picker (also compact, inside the playground) ---------- */
-.cx-picker {
-  --cx-gap: clamp(16px, 2.2vw, 40px);
-  container: cx-picker / inline-size;
-}
+.cx-sec-h,
 .cx-head {
-  display: grid;
-  gap: 12px var(--cx-gap);
-}
-.cx-head-t {
   display: grid;
   gap: 14px;
 }
-.cx-head h2,
-.cx-sec-h h2 {
+.cx-sec-h h2,
+.cx-head h2 {
   font-family: var(--display);
-  font-size: clamp(28px, 3.1vw, 46px);
+  font-size: clamp(32px, 3.4vw, 52px);
   font-weight: 500;
-  line-height: 1.06;
-  letter-spacing: -0.03em;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
   color: var(--ink);
   text-wrap: balance;
 }
 .cx-head-sub {
-  max-width: 52ch;
+  max-width: 46ch;
   font-size: 17px;
+  line-height: 1.6;
   color: var(--muted);
-  text-wrap: pretty;
-}
-.cx-cols {
-  margin-top: clamp(24px, 3vw, 44px);
-  display: grid;
-  gap: 16px var(--cx-gap);
+  text-wrap: balance;
 }
 
-/* the assistants: tiles on phones and in the playground, rows beside the panel on a desk */
+/* ---------- 2. the picker (also compact, inside the playground) ---------- */
+.cx-picker {
+  --r-tile: 14px; /* the assistant cards: softer than a control, smaller than a card */
+  container: cx-picker / inline-size;
+}
+.cx-picker-in {
+  display: grid;
+  gap: 32px;
+}
+.cx-side {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(28px, 3vw, 44px);
+  min-width: 0;
+}
+
+/* the assistants: white cards, the assistant's own mark in a small tile */
 .cx-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
   align-content: start;
   min-width: 0;
 }
 .cx-tile {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r);
+  padding: 14px 16px 14px 14px;
+  border: 0;
+  border-radius: var(--r-tile);
   background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-card);
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
   transition:
-    border-color 0.15s,
-    background 0.15s;
+    box-shadow 0.28s var(--ease-soft),
+    background 0.28s var(--ease-soft),
+    transform 0.28s var(--ease-soft);
 }
 .cx-tile:last-child:nth-child(odd) {
   grid-column: 1 / -1;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
 }
 .cx-tile:hover {
-  border-color: var(--line-2);
-  background: var(--canvas);
+  box-shadow: 0 0 0 1px var(--line-2), var(--shadow-soft);
+  transform: translateY(-1px);
 }
 .cx-tile[aria-pressed="true"] {
-  border-color: var(--teal-700);
   background: var(--teal-50);
+  box-shadow: 0 0 0 2px var(--teal-400), var(--shadow-card);
+  transform: none;
 }
-.cx-av {
+.cx-logo {
   flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--r);
   display: grid;
   place-items: center;
-  background: var(--canvas);
-  border: 1px solid var(--line);
-  font-family: var(--display);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink-2);
-  transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
-}
-.cx-tile:hover .cx-av {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r);
   background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
-.cx-tile[aria-pressed="true"] .cx-av,
-.cx-panel-h .cx-av {
-  background: var(--teal-700);
-  border-color: var(--teal-700);
-  color: var(--bg);
+.cx-logo svg {
+  display: block;
+}
+.cx-logo.is-letter {
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--teal-700);
+}
+.cx-tile[aria-pressed="true"] .cx-logo.is-letter {
+  background: var(--bg);
 }
 .cx-tile-t {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  max-width: 100%;
 }
 .cx-name {
-  font-size: 14.5px;
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.005em;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
 }
 .cx-tag {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 13px;
   line-height: 1.4;
   color: var(--muted);
 }
 .cx-tile.soon .cx-tag {
   color: var(--faint);
 }
-.cx-tile[aria-pressed="true"] .cx-tag {
-  color: var(--teal-700);
-}
-.cx-chev {
-  display: none;
-  width: 16px;
-  height: 16px;
-  color: var(--faint);
-  opacity: 0;
-  transform: translateX(-4px);
-  transition:
-    opacity 0.15s,
-    transform 0.2s var(--ease);
-}
 
 /* the detail panel */
 .cx-panel {
   container: cx-panel / inline-size;
   min-width: 0;
-  border: 1px solid var(--line);
   border-radius: var(--r-card);
   background: var(--bg);
-  scroll-margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  animation: cx-in 0.32s var(--ease) both;
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-soft);
+  scroll-margin-top: 24px;
 }
-.cx-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.cx-panel-in {
+  animation: cx-swap 0.5s var(--ease-soft) both;
 }
-.cx-split {
-  flex: 1;
-}
-@keyframes cx-in {
+@keyframes cx-swap {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -362,74 +305,79 @@
 .cx-panel-h {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--line);
+  gap: 16px;
+  padding: 32px 32px 0;
 }
-.cx-panel-h h3 {
-  flex: 1;
+.cx-panel-t {
   min-width: 0;
+}
+.cx-panel-t h3 {
   font-family: var(--display);
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 500;
   line-height: 1.2;
   letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.cx-panel-t p {
+  margin-top: 3px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.cx-card {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 28px 32px 32px;
 }
 .cx-block {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
   min-width: 0;
-  padding: 20px;
-}
-.cx-card > * + *,
-.cx-split > * + * {
-  border-top: 1px solid var(--line);
 }
 .cx-label {
   display: block;
   margin-bottom: 10px;
 }
 .cx-lead {
-  max-width: 62ch;
+  max-width: 60ch;
   font-size: 15.5px;
+  line-height: 1.6;
   color: var(--ink-2);
   text-wrap: pretty;
 }
 
-/* things you copy look the same: canvas ground, hairline, the button at the right */
+/* things you copy look the same: a mist ground, the copy button at the right */
 .cx-addr,
 .cx-example {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 6px 6px 6px 12px;
-  border: 1px solid var(--line-2);
+  gap: 12px;
+  min-height: 50px;
+  padding: 8px 8px 8px 16px;
   border-radius: var(--r);
-  background: var(--canvas);
+  background: var(--mist);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .cx-addr code {
   flex: 1;
   min-width: 0;
-  font-family: var(--mono);
-  font-size: 13px;
+  font-family: var(--font);
+  font-size: 14.5px;
   line-height: 1.45;
   color: var(--ink);
   overflow-wrap: anywhere;
   user-select: all;
 }
-.cx-example {
-  align-items: flex-start;
-  border-color: var(--line);
-}
 .cx-example p {
   flex: 1;
   min-width: 0;
   padding: 4px 0;
-  font-size: 14.5px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--ink);
+  text-wrap: pretty;
 }
 .cx-copy {
   flex: none;
@@ -437,30 +385,31 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-width: 80px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r);
+  min-width: 84px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--r) - 2px);
   background: var(--bg);
   color: var(--ink-2);
   font-family: var(--font);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent);
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
+    background 0.25s var(--ease-soft),
+    border-color 0.25s var(--ease-soft),
+    color 0.25s var(--ease-soft);
 }
 .cx-copy .ic {
   width: 14px;
   height: 14px;
 }
 .cx-copy:hover {
-  background: var(--hover);
-  border-color: var(--faint);
+  border-color: var(--teal-100);
+  color: var(--teal-700);
 }
 .cx-copy.done {
   color: var(--teal-700);
@@ -473,84 +422,83 @@
   gap: 10px;
 }
 .cx-actions .btn-dark {
-  min-height: 42px;
-  padding-inline: 18px;
+  min-height: 50px;
+  padding: 0 22px;
+  font-size: 15px;
 }
 .cx-actions .ic {
   width: 16px;
   height: 16px;
 }
 
+/* numbered steps: soft circles */
 .cx-steps-t {
-  margin-bottom: 10px;
-  font-size: 13.5px;
-  font-weight: 600;
+  margin-bottom: 12px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--ink);
 }
 .cx-steps ol {
   margin: 0;
   padding: 0;
   list-style: none;
-  counter-reset: cx;
+  display: grid;
+  gap: 14px;
 }
 .cx-steps li {
-  counter-increment: cx;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  align-items: baseline;
-  padding: 9px 0;
-  border-top: 1px solid var(--line);
-  font-size: 14.5px;
-  line-height: 1.45;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: start;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--ink-2);
 }
-.cx-steps li:last-child {
-  padding-bottom: 0;
-}
-.cx-steps li::before {
-  content: counter(cx, decimal-leading-zero);
-  font-family: var(--mono);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
+.cx-step-n {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--teal-50);
   color: var(--teal-700);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .cx-note {
-  padding-left: 12px;
-  border-left: 2px solid var(--teal-100);
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  background: var(--teal-50);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
   text-wrap: pretty;
+}
+.cx-note .ic {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  color: var(--teal-700);
+}
+.cx-ask {
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
 }
 .cx-ask ul {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
 }
 
-/* wider columns */
-@container cx-picker (min-width: 560px) {
-  .cx-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .cx-tile,
-  .cx-tile:last-child:nth-child(odd) {
-    grid-column: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 12px;
-  }
-  .cx-tile-t {
-    flex: 1;
-  }
-  .cx-tag {
-    font-size: 11px;
-  }
-}
 @container cx-panel (min-width: 520px) {
   .cx-connect-row {
     display: grid;
@@ -559,73 +507,51 @@
     gap: 12px;
   }
 }
-@container cx-panel (min-width: 680px) {
-  .cx-split {
-    display: grid;
-    grid-template-columns: minmax(0, 11fr) minmax(0, 10fr);
+/* a desk: the heading and the cards in the left half, the panel in the right half */
+@container cx-picker (min-width: 920px) {
+  .cx-picker:not(.compact) .cx-picker-in {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(32px, 4vw, 80px);
+    align-items: start;
   }
-  .cx-split > * + * {
-    border-top: 0;
-    border-left: 1px solid var(--line);
-  }
-  .cx-block {
-    padding: 22px 24px;
-  }
-  .cx-panel-h {
-    padding: 16px 24px;
+  .cx-picker:not(.compact) .cx-panel {
+    align-self: stretch;
   }
 }
-/* a desk: the list on the left, the panel stays in view on the right */
-@container cx-picker (min-width: 920px) {
-  .cx-picker:not(.compact) .cx-head,
-  .cx-picker:not(.compact) .cx-cols {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+/* narrow (phones): each card stacks its mark over its words */
+@container cx-picker (max-width: 519px) {
+  .cx-tile {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
   }
-  .cx-picker:not(.compact) .cx-head-t,
-  .cx-picker:not(.compact) .cx-grid {
-    grid-column: span 5;
-  }
-  .cx-picker:not(.compact) .cx-head-sub,
-  .cx-picker:not(.compact) .cx-panel {
-    grid-column: span 7;
-  }
-  .cx-picker:not(.compact) .cx-head-sub {
-    align-self: end;
-    padding-bottom: 0.3em;
-  }
-  .cx-picker:not(.compact) .cx-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-  .cx-picker:not(.compact) .cx-tile {
-    min-height: 52px;
-    padding: 9px 12px 9px 10px;
-  }
-  .cx-picker:not(.compact) .cx-tile-t {
+  .cx-tile:last-child:nth-child(odd) {
     flex-direction: row;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
+    align-items: center;
   }
-  .cx-picker:not(.compact) .cx-tag {
-    text-align: right;
+  .cx-logo {
+    width: 40px;
+    height: 40px;
   }
-  .cx-picker:not(.compact) .cx-chev {
-    display: block;
+}
+@container cx-panel (max-width: 519px) {
+  .cx-panel-h {
+    padding: 22px 20px 0;
+    gap: 14px;
   }
-  .cx-picker:not(.compact) .cx-tile:hover .cx-chev,
-  .cx-picker:not(.compact) .cx-tile[aria-pressed="true"] .cx-chev {
-    opacity: 1;
-    transform: none;
+  .cx-panel-t h3 {
+    font-size: 20px;
   }
-  .cx-picker:not(.compact) .cx-tile[aria-pressed="true"] .cx-chev {
-    color: var(--teal-700);
+  .cx-card {
+    padding: 22px 20px 22px;
+    gap: 24px;
   }
-  /* the panel is as tall as the list, and stays in view if the list ever outgrows it */
-  .cx-picker:not(.compact) .cx-panel {
-    position: sticky;
-    top: 24px;
-    align-self: stretch;
+  .cx-ask {
+    padding-top: 24px;
+  }
+  .cx-actions .btn-dark {
+    flex: 1 1 100%;
   }
 }
 
@@ -633,85 +559,135 @@
 .cx-picker.compact {
   margin-top: 24px;
 }
-.cx-picker.compact .cx-head h2 {
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
+.cx-picker.compact .cx-picker-in {
+  gap: 20px;
 }
-.cx-picker.compact .cx-cols {
-  margin-top: 14px;
-}
-.cx-picker.compact .cx-panel-h h3 {
-  font-size: 17px;
-}
-.cx-picker.compact .cx-panel-h,
-.cx-picker.compact .cx-block {
-  padding-inline: 18px;
-}
-
-/* ---------- 3. the safety strip ---------- */
-.cx-safety {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: var(--cx-gap);
-  align-items: end;
-  background: var(--canvas);
-}
-.cx-safety .cx-rules {
-  grid-column: 1 / -1;
-}
-.cx-safety .cx-more {
-  grid-area: 1 / 2;
-  margin: 0;
-  padding-bottom: 0.45em;
-}
-.cx-sec-h {
-  display: grid;
+.cx-picker.compact .cx-side {
   gap: 14px;
 }
+.cx-picker.compact .cx-head h2 {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+.cx-picker.compact .cx-grid {
+  gap: 10px;
+}
+.cx-picker.compact .cx-tile {
+  padding: 10px 12px 10px 10px;
+  gap: 12px;
+}
+.cx-picker.compact .cx-logo {
+  width: 36px;
+  height: 36px;
+}
+.cx-picker.compact .cx-logo svg {
+  width: 20px;
+  height: 20px;
+}
+.cx-picker.compact .cx-logo.is-letter {
+  font-size: 16px;
+}
+.cx-picker.compact .cx-name {
+  font-size: 14.5px;
+}
+.cx-picker.compact .cx-tag {
+  font-size: 12.5px;
+}
+.cx-picker.compact .cx-panel-h {
+  padding: 24px 24px 0;
+}
+.cx-picker.compact .cx-panel-t h3 {
+  font-size: 20px;
+}
+.cx-picker.compact .cx-card {
+  padding: 22px 24px 24px;
+  gap: 24px;
+}
+@container cx-picker (min-width: 620px) {
+  .cx-picker.compact .cx-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cx-picker.compact .cx-tile:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+}
+
+/* ---------- 3. safety ---------- */
+.cx-safety {
+  background: var(--mist);
+}
 .cx-sec-h h2 {
-  max-width: 18ch;
+  max-width: 26ch;
 }
 .cx-rules {
-  margin: clamp(32px, 4vw, 64px) 0 0;
+  margin: clamp(40px, 4.5vw, 64px) 0 0;
   padding: 0;
   list-style: none;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0 var(--cx-gap);
+  gap: clamp(16px, 2vw, 28px);
 }
 .cx-rules li {
-  padding-top: 18px;
-  border-top: 1px solid var(--teal-900);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(28px, 2.6vw, 40px);
+  border-radius: var(--r-card);
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-soft);
 }
-.cx-rules .eyebrow {
+.cx-rule-ic {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--teal-50);
   color: var(--teal-700);
 }
+.cx-rule-ic .ic {
+  width: 20px;
+  height: 20px;
+}
+.cx-rule-n {
+  margin-top: 28px;
+  font-size: 13px;
+  color: var(--muted);
+}
 .cx-rules p {
-  margin-top: clamp(14px, 1.6vw, 24px);
-  max-width: 32ch;
-  font-size: clamp(17px, 1.45vw, 22px);
+  margin-top: 8px;
+  max-width: 34ch;
+  font-size: clamp(17px, 1.3vw, 20px);
   font-weight: 500;
-  line-height: 1.38;
-  letter-spacing: -0.012em;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   color: var(--ink);
   text-wrap: pretty;
 }
 .cx-more {
-  margin-top: clamp(28px, 3.4vw, 52px);
+  margin-top: 36px;
   font-size: 15px;
 }
 
-/* ---------- 4. the business band ---------- */
+/* ---------- 4. the business panel ---------- */
+.cx-band-wrap {
+  padding: var(--sec-y) var(--gutter);
+  background: var(--bg);
+}
 .cx-band {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: var(--cx-gap);
+  row-gap: 24px;
   align-items: end;
-  padding: clamp(56px, 7.5vw, 112px) var(--gutter);
-  background: var(--teal-900);
-  color: var(--on);
+  padding: clamp(40px, 5.5vw, 88px) clamp(28px, 5vw, 80px);
+  border-radius: var(--r-card);
+  background:
+    radial-gradient(70% 120% at 100% 0%, color-mix(in srgb, var(--teal-100) 70%, transparent), transparent 70%),
+    var(--teal-50);
 }
 .cx-band-l {
   grid-column: span 7;
@@ -721,29 +697,30 @@
 .cx-band-r {
   grid-column: span 5;
 }
-.cx-band .eyebrow {
-  color: var(--teal-400);
-}
 .cx-band h2 {
   font-family: var(--display);
-  font-size: clamp(30px, 3.3vw, 56px);
+  font-size: clamp(30px, 3.2vw, 52px);
   font-weight: 500;
-  line-height: 1.04;
-  letter-spacing: -0.032em;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: var(--ink);
 }
 .cx-band h2 span {
   display: block;
   text-wrap: balance;
 }
 .cx-band p {
-  max-width: 46ch;
+  max-width: 40ch;
   font-size: 17px;
-  line-height: 1.55;
-  color: var(--on-soft);
+  line-height: 1.6;
+  color: var(--ink-2);
   text-wrap: pretty;
 }
-.cx-band .btn-night {
-  margin-top: 24px;
+.cx-band .btn-dark {
+  margin-top: 28px;
+  min-height: 50px;
+  padding: 0 22px;
+  font-size: 15px;
 }
 
 /* ---------- 5. footer ---------- */
@@ -753,7 +730,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px 32px;
-  padding: 26px var(--gutter);
+  padding: 28px var(--gutter) 32px;
+  border-top: 1px solid var(--line);
   background: var(--bg);
   font-size: 13.5px;
   color: var(--muted);
@@ -768,11 +746,10 @@
   font-weight: 500;
   text-decoration: none;
   border-radius: 4px;
+  transition: color 0.25s var(--ease-soft);
 }
 .cx-foot a:hover {
   color: var(--teal-700);
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .cx-sr {
@@ -787,20 +764,17 @@
   border: 0;
 }
 
-/* ---------- a narrower stage column wraps the handshake's lines, so it needs a little more room ---------- */
+/* ---------- a narrower stage wraps the handshake's lines, so it needs a little more room ---------- */
 @media (max-width: 1279px) {
   .cx-stage {
-    min-height: 720px;
+    min-height: 860px;
   }
 }
 /* ---------- below a desk: one column ---------- */
 @media (max-width: 999px) {
-  .cx-hero {
-    min-height: 0;
-  }
   .cx-hero-grid {
-    row-gap: 40px;
-    padding: 28px 0 56px;
+    row-gap: 48px;
+    padding: 24px 0 72px;
   }
   .cx-pitch,
   .cx-stage,
@@ -808,69 +782,41 @@
   .cx-band-r {
     grid-column: 1 / -1;
   }
+  .cx-pitch {
+    padding-bottom: 0;
+  }
   .cx-stage {
-    justify-self: start;
+    justify-self: stretch;
+    max-width: none;
+    min-height: 780px;
   }
-  .cx-hero::before {
-    -webkit-mask-image: radial-gradient(90% 46% at 50% 76%, rgba(0, 0, 0, 1), transparent 80%);
-    mask-image: radial-gradient(90% 46% at 50% 76%, rgba(0, 0, 0, 1), transparent 80%);
-  }
-  .cx-hero::after {
-    top: auto;
-    bottom: -6%;
-    right: -20%;
-    width: 140%;
-    transform: none;
-  }
+}
+@media (max-width: 899px) {
   .cx-rules {
     grid-template-columns: minmax(0, 1fr);
-    gap: 28px;
   }
-  .cx-rules p {
-    max-width: 44ch;
-  }
-  .cx-safety {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .cx-safety .cx-more {
-    grid-area: auto;
-    margin-top: 32px;
-    padding: 0;
-  }
-  .cx-band {
-    row-gap: 22px;
+  .cx-rule-n {
+    margin-top: 20px;
   }
 }
 @media (max-width: 640px) {
   .cx-bar {
-    min-height: 64px;
-  }
-  .cx-stage {
-    min-height: 788px;
+    min-height: 68px;
   }
   .cx-nav a:first-child {
     display: none;
   }
-  .cx-sub {
-    font-size: 16.5px;
+  .cx-stage {
+    min-height: 900px;
   }
-  .cx-cta .btn-night {
+  .cx-cta .btn-dark,
+  .cx-cta .btn-line {
     flex: 1 1 100%;
   }
-  .cx-head-sub {
-    font-size: 16px;
+  .cx-band {
+    padding: 36px 24px;
   }
-  .cx-block,
-  .cx-panel-h {
-    padding: 16px;
-  }
-  .cx-panel-h .badge {
-    display: none;
-  }
-  .cx-actions .btn-dark {
-    flex: 1 1 100%;
-  }
-  .cx-band .btn-night {
+  .cx-band .btn-dark {
     width: 100%;
   }
   .cx-foot {
@@ -879,19 +825,20 @@
   }
 }
 
-/* wide screens: the headline and the stage both grow, so the night between them reads as a pause, not a gap */
-@media (min-width: 1700px) {
-  .cx-pitch {
-    grid-column: span 6;
-  }
+@media (max-width: 380px) {
   .cx-stage {
-    grid-column: span 6;
-    zoom: 1.14;
+    min-height: 920px;
   }
-  .cx-pitch h1 {
-    font-size: clamp(84px, 5.3vw, 108px);
+}
+
+/* wide screens: the stage grows with the headline, so the two halves stay in balance */
+@media (min-width: 1700px) {
+  .cx-stage {
+    max-width: 760px;
+    min-height: 740px; /* 829px once zoomed; the handshake peaks at 817px */
+    zoom: 1.12;
   }
   .cx-sub {
-    font-size: 20px;
+    font-size: 19px;
   }
 }

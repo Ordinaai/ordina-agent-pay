@@ -120,7 +120,7 @@ export function Welcome({ onIn, demos }: { onIn: (b: Biz) => void; demos: Demo[]
     onChange: (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value }),
   });
 
-  // The three points and the proof sit in the night panel on a wide screen, and under the form on a phone.
+  // The three points and the proof sit in the brand panel on a wide screen, and under the form on a phone.
   const points = (
     <ul className="wl-points">
       <li>
@@ -152,9 +152,9 @@ export function Welcome({ onIn, demos }: { onIn: (b: Biz) => void; demos: Demo[]
   const proof = (
     <div className="wl-proof">
       <span className="eyebrow">A booking, as it arrives</span>
-      <div className="wl-pass" style={{ "--pass-notch": "var(--night)" } as React.CSSProperties}>
+      <div className="wl-pass">
         <Pass label="Booked by a customer's assistant" title="Silk press" place="Your business" when="Fri 13 Nov, 09:00" amount="35.00" state="paid" enter>
-          <Seal title="Paid before it was booked" detail="PayPal confirmed · no unpaid no-shows" />
+          <Seal title="Paid before it was booked" detail="PayPal confirmed, so no unpaid no-shows" />
         </Pass>
       </div>
     </div>
@@ -167,9 +167,9 @@ export function Welcome({ onIn, demos }: { onIn: (b: Biz) => void; demos: Demo[]
 
   return (
     <div className={`wl is-${mode}`}>
-      <aside className="wl-night on-night">
+      <aside className="wl-side">
         <span className="brand">
-          <Mark light /> Ordina <em className="for">Agent Checkout</em>
+          <Mark /> Ordina <em className="for">Agent Checkout</em>
         </span>
         <div className="wl-pitch">
           <span className="eyebrow">For businesses</span>
@@ -285,7 +285,7 @@ export function Welcome({ onIn, demos }: { onIn: (b: Biz) => void; demos: Demo[]
         </div>
       </main>
 
-      <aside className="wl-more on-night">
+      <aside className="wl-more">
         {points}
         {proof}
       </aside>
@@ -380,7 +380,8 @@ export function Onboarding({ me, onSaved, onExit }: { me: Biz; onSaved: (b: Biz)
         </button>
       </header>
 
-      <main className="ob-main">
+      {/* keyed on the step, so each new step's card fades and rises in */}
+      <main className="ob-main" key={step}>
         {step === "sell" && <SellStep me={me} onFound={applyImport} onManual={() => { setFound(null); setItems(items.length ? items : [blankItem()]); setStep("review"); }} />}
 
         {step === "review" && (
@@ -476,10 +477,10 @@ export function Onboarding({ me, onSaved, onExit }: { me: Biz; onSaved: (b: Biz)
   );
 }
 
-// One step: the card, and on a wide screen a quiet note beside it that says why the step exists.
-function StepCard({ n, title, sub, why, whyTitle = "Why we ask", children }: { n: number; title: string; sub?: string; why?: React.ReactNode; whyTitle?: string; children: React.ReactNode }) {
+// One step: one calm card, centred.
+function StepCard({ n, title, sub, children }: { n: number; title: string; sub?: string; children: React.ReactNode }) {
   return (
-    <div className={`ob-stage ${why ? "has-why" : ""}`}>
+    <div className="ob-stage">
       <section className="ob-card">
         <span className="eyebrow ob-count">
           Step {n} of {STEPS.length}
@@ -488,12 +489,6 @@ function StepCard({ n, title, sub, why, whyTitle = "Why we ask", children }: { n
         {sub && <p className="ob-sub">{sub}</p>}
         {children}
       </section>
-      {why && (
-        <aside className="ob-why">
-          <span className="eyebrow">{whyTitle}</span>
-          {why}
-        </aside>
-      )}
     </div>
   );
 }
@@ -569,13 +564,7 @@ function SellStep({ me, onFound, onManual }: { me: Biz; onFound: (r: ImportResul
     <StepCard
       n={1}
       title={`What does ${me.name} sell?`}
-      sub="Your Secretary only ever quotes what is on this list, at these prices. Choose how to fill it in."
-      why={
-        <>
-          <p>Customers' AI assistants ask your Secretary what you offer and what it costs. It answers from this list and nothing else, so no agent can change your prices.</p>
-          <p>Nothing is saved until you check it.</p>
-        </>
-      }
+      sub="Your Secretary only ever quotes what is on this list, at these prices, so no agent can change them. Choose how to fill it in."
     >
       <div className={`ob-opts ${busy ? "is-reading" : ""}`}>
         <div className="ob-option primary">
@@ -598,7 +587,8 @@ function SellStep({ me, onFound, onManual }: { me: Biz; onFound: (r: ImportResul
                 </span>
               </div>
               <div className="ob-read-bar" aria-hidden>
-                <i />
+                {/* fills slowly with the lines and never quite reaches the end until the answer arrives */}
+                <i style={{ width: `${Math.min(92, 6 + (elapsed / (READING_GAP * READING.length)) * 86)}%` }} />
               </div>
               <ol className="ob-read-lines">
                 {READING.map((text, i) => (
@@ -731,14 +721,6 @@ function ReviewStep(props: {
           ? `From ${found.source.title || host(found.source.url)}. We found ${found.items.length} ${found.items.length === 1 ? "thing" : "things"} you sell. Check each price; your Secretary will quote exactly these.`
           : "Appointments take time in your calendar. Pickup items are ordered ahead and collected, up to a daily limit."
       }
-      whyTitle={found ? "Two kinds of thing" : "Why we ask"}
-      why={
-        found ? (
-          <p>Appointments take time in your calendar. Pickup items are ordered ahead and collected, up to a daily limit.</p>
-        ) : (
-          <p>Your Secretary quotes exactly these prices, in US dollars. No agent can change them.</p>
-        )
-      }
     >
       {found && (
         <p className="ob-source">
@@ -799,7 +781,12 @@ function ReviewStep(props: {
       )}
 
       <div className="ob-items">
-        {found && <h2>What you sell</h2>}
+        {found && (
+          <div className="ob-items-title">
+            <h2>What you sell</h2>
+            <span className="field-hint">Appointments take time in your calendar. Pickup items are ordered ahead and collected, up to a daily limit.</span>
+          </div>
+        )}
         {items.length > 0 && (
           <div className="ob-items-head" aria-hidden>
             <span>Kind</span>
@@ -898,8 +885,7 @@ function HoursStep(props: { city: string; hours: Hours; setHours: (h: Hours) => 
     <StepCard
       n={2}
       title="When are you open?"
-      sub={`In ${props.city} time. Customers' agents can only book inside these hours.${props.fromLink ? " We filled these in from your page; check them." : ""}`}
-      why={<p>Your city sets your time zone, so bookings land at the right hour. A day you switch off is never offered to anyone.</p>}
+      sub={`In ${props.city} time. Customers' agents can only book inside these hours, and a day you switch off is never offered.${props.fromLink ? " We filled these in from your page; check them." : ""}`}
     >
       <div className="ob-chips" role="group" aria-label="Quick choices">
         <span className="eyebrow">Quick choices</span>
@@ -963,7 +949,6 @@ function CancelStep(props: { value: string; setValue: (v: string) => void; busy:
       n={3}
       title="Until when can customers cancel for free?"
       sub="Up to this point, a customer can cancel and get a full refund through PayPal on their own. After it, refunds are your call: you can refund any amount for 180 days."
-      why={<p>A clear cut-off means nobody has to ask. Before it, the customer cancels and PayPal refunds them in full. After it, the decision is yours.</p>}
     >
       <div className="ob-choices" role="radiogroup" aria-label="Free cancellation">
         {choices.map((c) => (
@@ -991,17 +976,18 @@ function CancelStep(props: { value: string; setValue: (v: string) => void; busy:
 function PayStep(props: { me: Biz; onSaved: (b: Biz) => void; busy: boolean; err: string | null; pickDemoSeller: () => Promise<Biz | null>; onBack: () => void; onNext: () => void }) {
   const p = props.me.paypal;
   const connected = !!p.merchantId && p.receivable && p.emailConfirmed;
-  const why = <p>Every booking is paid first, so there are no unpaid no-shows. Ordina takes no cut of your sales; you pay PayPal's usual fee.</p>;
+  const fee = <p className="ob-aside">Every booking is paid first, so there are no unpaid no-shows. Ordina takes no cut of your sales; you pay PayPal's usual fee.</p>;
   if (FLOW !== "standard") {
     return (
-      <StepCard n={4} title="Get paid into your PayPal" sub="Customers pay into your own PayPal account. PayPal checks your business, so there is nothing to upload here." why={why}>
+      <StepCard n={4} title="Get paid into your PayPal" sub="Customers pay into your own PayPal account. PayPal checks your business, so there is nothing to upload here.">
         <PaySection me={props.me} onSaved={props.onSaved} notice={null} />
+        {fee}
         <Nav onBack={props.onBack} onNext={props.onNext} disabled={!connected} />
       </StepCard>
     );
   }
   return (
-    <StepCard n={4} title="Getting paid" sub="Customers pay through PayPal the moment they approve, by PayPal or by card. Nobody needs a PayPal account to pay you." why={why}>
+    <StepCard n={4} title="Getting paid" sub="Customers pay through PayPal the moment they approve, by PayPal or by card. Nobody needs a PayPal account to pay you.">
       <div className={`pp-row ${connected ? "ok" : ""}`}>
         <span className="pp-mark" aria-hidden>
           <b>P</b>
@@ -1025,6 +1011,7 @@ function PayStep(props: { me: Biz; onSaved: (b: Biz) => void; busy: boolean; err
         )}
       </div>
       {!connected && <span className="field-err ob-under">Choose how you get paid to continue.</span>}
+      {fee}
       <Nav onBack={props.onBack} onNext={props.onNext} disabled={!connected} err={props.err} />
     </StepCard>
   );
@@ -1045,9 +1032,7 @@ function LiveStep(props: { me: Biz; busy: boolean; err: string | null; onBack: (
     <StepCard
       n={5}
       title="Ready to go live?"
-      sub="Once you are live, any customer's AI assistant can find you, and your own link starts taking bookings."
-      whyTitle="Good to know"
-      why={<p>Nothing here is final. You can change any of it later.</p>}
+      sub="Once you are live, any customer's AI assistant can find you, and your own link starts taking bookings. Nothing here is final; you can change any of it later."
     >
       <div className="ob-summary">
         {rows.map((r, i) => (

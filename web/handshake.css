@@ -1,19 +1,16 @@
-/* The handshake: the front door's live sequence (handshake.tsx). It sits on a night stage. */
+/* The handshake: the front door's live sequence (handshake.tsx). A calm white card on a soft ground. */
 .hs {
-  --hs-bg: color-mix(in srgb, var(--night) 92%, white);
-  --hs-line: rgba(255, 255, 255, 0.1);
-  --hs-soft: rgba(255, 255, 255, 0.62);
-  --pass-notch: var(--hs-bg);
   position: relative;
   width: 100%;
   display: flex;
   flex-direction: column;
-  padding: 16px 22px 24px;
-  border-radius: 14px;
-  background: var(--hs-bg);
-  border: 1px solid var(--hs-line);
-  box-shadow: 0 50px 120px -50px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(46, 191, 174, 0.04);
-  color: #fff;
+  padding: 20px 24px 26px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 2px rgba(31, 45, 58, 0.04), 0 30px 80px -36px rgba(21, 89, 81, 0.3), inset 0 0 0 1px var(--line);
+  backdrop-filter: blur(10px);
+  color: var(--ink);
   text-align: left;
 }
 
@@ -27,7 +24,7 @@
   flex: 1;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+  gap: 8px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -38,17 +35,15 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.34);
-  transition: color 0.4s;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--faint);
+  transition: color 0.6s var(--ease-soft);
 }
 .hs-phases li i {
-  height: 2px;
-  border-radius: 2px;
-  background: var(--hs-line);
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line);
   position: relative;
   overflow: hidden;
 }
@@ -56,20 +51,21 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: var(--teal-400);
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--teal-400), var(--teal-500));
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 0.6s var(--ease);
+  transition: transform 0.9s var(--ease);
 }
 .hs-phases li.done i::after,
 .hs-phases li.on i::after {
   transform: none;
 }
 .hs-phases li.done {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--muted);
 }
 .hs-phases li.on {
-  color: #fff;
+  color: var(--teal-700);
 }
 .hs-phases li span {
   white-space: nowrap;
@@ -78,22 +74,22 @@
 }
 .hs-replay {
   flex: none;
-  width: 28px;
-  height: 28px;
-  margin-top: -6px;
+  width: 30px;
+  height: 30px;
+  margin-top: -7px;
   display: grid;
   place-items: center;
-  border-radius: var(--r);
-  border: 1px solid var(--hs-line);
-  background: transparent;
-  color: var(--hs-soft);
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 .hs-replay:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--teal-700);
+  border-color: var(--teal-100);
+  background: var(--teal-50);
 }
 .hs-replay .ic {
   width: 14px;
@@ -105,8 +101,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 18px;
-  transition: opacity 0.5s;
+  margin-top: 20px;
+  transition: opacity 0.7s var(--ease-soft);
 }
 .hs.is-leaving .hs-body {
   opacity: 0;
@@ -117,31 +113,29 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  min-height: 50px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--hs-line);
-  background: rgba(255, 255, 255, 0.03);
+  min-height: 52px;
+  padding: 13px 16px;
+  border-radius: 16px;
+  background: var(--mist);
+  border: 1px solid var(--line);
   opacity: 0;
-  transition: opacity 0.4s;
+  transition: opacity 0.6s var(--ease-soft);
 }
 .hs-ask.on {
   opacity: 1;
 }
 .hs-you {
   flex: none;
-  margin-top: 3px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--teal-400);
+  margin-top: 1px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--teal-700);
 }
 .hs-ask p {
   margin: 0;
   font-size: 15.5px;
   line-height: 1.45;
-  color: #fff;
+  color: var(--ink);
 }
 .hs-caret {
   display: inline-block;
@@ -149,18 +143,19 @@
   height: 1.05em;
   margin-left: 2px;
   vertical-align: -0.18em;
+  border-radius: 1px;
   background: var(--teal-400);
-  animation: blink 1s steps(2, start) infinite;
+  animation: blink 1.1s ease-in-out infinite;
 }
 
 /* the two agents */
 .hs-msg {
-  max-width: 78%;
-  padding: 10px 14px 11px;
-  border-radius: 10px;
+  max-width: 80%;
+  padding: 11px 16px 12px;
+  border-radius: 16px;
   opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
+  transform: translateY(8px);
+  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
 }
 .hs-msg.on {
   opacity: 1;
@@ -170,83 +165,85 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
-  color: var(--hs-soft);
+  font-size: 12px;
+  color: var(--muted);
 }
 .hs-msg p {
-  margin: 4px 0 0;
-  font-size: 14.5px;
+  margin: 3px 0 0;
+  font-size: 15px;
   line-height: 1.4;
 }
 .hs-msg.from-assistant {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--hs-line);
+  background: #fff;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+  border-bottom-left-radius: 6px;
 }
 .hs-msg.from-secretary {
   align-self: flex-end;
-  background: rgba(46, 191, 174, 0.1);
-  border: 1px solid rgba(46, 191, 174, 0.26);
+  background: var(--teal-50);
+  border: 1px solid var(--teal-100);
+  border-bottom-right-radius: 6px;
 }
 .hs-msg.from-secretary .eyebrow {
-  color: var(--teal-400);
+  color: var(--teal-700);
 }
 
 /* the gate: what the server and PayPal check before any money can move */
 .hs-gate {
   margin-top: 6px;
   padding-top: 14px;
-  border-top: 1px dashed var(--hs-line);
+  border-top: 1px solid var(--line);
   opacity: 0;
-  transition: opacity 0.4s;
+  transition: opacity 0.6s var(--ease-soft);
 }
 .hs-gate.on {
   opacity: 1;
 }
 .hs-gate > .eyebrow {
   display: block;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 12.5px;
+  color: var(--muted);
 }
 .hs-gate ul {
   list-style: none;
-  margin: 9px 0 0;
+  margin: 10px 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7px 10px;
+  gap: 8px 10px;
 }
 .hs-gate li {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
-  padding: 7px 10px;
-  border-radius: var(--r);
-  border: 1px solid var(--hs-line);
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 12.5px;
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: var(--mist);
+  font-size: 13px;
   line-height: 1.3;
-  color: rgba(255, 255, 255, 0.86);
-  opacity: 0.28;
-  transition: opacity 0.35s, border-color 0.35s, background 0.35s;
+  color: var(--ink-2);
+  opacity: 0.35;
+  transition: opacity 0.5s var(--ease-soft), background 0.5s var(--ease-soft);
 }
 .hs-gate li.on {
   opacity: 1;
-  border-color: rgba(46, 191, 174, 0.3);
-  background: rgba(46, 191, 174, 0.07);
+  background: var(--green-soft);
 }
 .hs-gate li svg {
   flex: none;
 }
 .hs-gate li circle {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.3);
+  fill: #fff;
+  stroke: var(--line-2);
   stroke-width: 1.4;
+  transition: stroke 0.4s;
 }
 .hs-gate li path {
   fill: none;
-  stroke: var(--teal-400);
+  stroke: var(--green);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -254,22 +251,19 @@
   stroke-dashoffset: 12;
 }
 .hs-gate li.on circle {
-  stroke: var(--teal-400);
+  stroke: var(--green);
 }
 .hs-gate li.on path {
-  animation: draw 0.35s var(--ease) 0.05s forwards;
+  animation: draw 0.5s var(--ease) 0.08s forwards;
 }
 .hs-gate li b {
   flex: none;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
 }
 .hs-gate li b.by-paypal {
-  color: var(--gold);
+  color: var(--pp-navy);
 }
 .hs-gate li span {
   min-width: 0;
@@ -280,25 +274,24 @@
   display: grid;
   place-items: start center;
   min-height: 250px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 .hs-pass .pass {
   max-width: 400px;
-  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.7);
 }
 .hs-pp {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
-  border-radius: var(--r);
+  height: 42px;
+  border-radius: 10px;
   background: var(--gold);
   font-family: var(--font);
   font-size: 18px;
   font-style: italic;
   font-weight: 800;
   letter-spacing: -0.02em;
-  transition: transform 0.18s var(--ease), box-shadow 0.3s;
+  transition: transform 0.3s var(--ease), box-shadow 0.4s var(--ease-soft);
 }
 .hs-pp b:first-child {
   color: var(--pp-navy);
@@ -307,17 +300,17 @@
   color: var(--pp-blue);
 }
 .hs-pp.is-pressed {
-  transform: scale(0.975);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 38%, transparent);
+  transform: scale(0.98);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--gold) 30%, transparent);
 }
 
 @media (max-width: 560px) {
   .hs {
-    padding: 14px 14px 18px;
+    padding: 16px 16px 20px;
+    border-radius: 20px;
   }
   .hs-phases li {
-    font-size: 9.5px;
-    letter-spacing: 0.04em;
+    font-size: 11px;
   }
   .hs-msg {
     max-width: 92%;

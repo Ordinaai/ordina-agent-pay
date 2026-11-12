@@ -1,7 +1,8 @@
 /* Ordina Agent Checkout: the playground (/try, /b/<handle>) and the hosted pay page (/pay/<token>),
    plus the app shell the business dashboard shares (.app, .side, .main, .top, .page).
+   Direction "Ordina calm": light surfaces, soft depth, one brand teal, slow smooth motion.
    Tokens and the shared pieces (buttons, fields, badges, the brand, the pass, motion) live in
-   system.css, which loads last. Playground-only rules are scoped under .play. See docs/DESIGN.md. */
+   system.css, which loads last. Playground-only looks are scoped under .play. See docs/DESIGN.md. */
 
 * {
   box-sizing: border-box;
@@ -34,18 +35,18 @@ button {
 .app {
   height: 100%;
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: 272px minmax(0, 1fr);
 }
 .side {
-  background: var(--canvas);
+  background: var(--mist);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 14px 12px 12px;
+  padding: 18px 14px 14px;
 }
 .side-top {
-  padding: 4px 6px 16px;
+  padding: 4px 8px 20px;
 }
 .side-nav {
   display: flex;
@@ -58,31 +59,37 @@ button {
   border: 0;
   background: transparent;
   border-radius: var(--r);
-  padding: 7px 10px;
+  padding: 9px 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   text-align: left;
-  font-size: 14px;
+  font-size: 14.5px;
   color: var(--ink-2);
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.25s var(--ease-soft), color 0.25s var(--ease-soft), box-shadow 0.25s var(--ease-soft);
 }
 .side-nav button .ic {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   color: var(--muted);
+  transition: color 0.25s var(--ease-soft);
 }
 .side-nav button:hover,
 .side-chats button:hover {
-  background: var(--hover);
+  background: rgba(255, 255, 255, 0.7);
   color: var(--ink);
 }
 .side-nav button.on,
 .side-chats button.on {
   background: var(--teal-50);
   color: var(--teal-700);
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--teal-100);
+  font-weight: 500;
+}
+/* the playground: the active row lifts off the mist as a white card */
+.play .side-nav button.on,
+.play .side-chats button.on {
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
 .side-nav button.on .ic {
   color: var(--teal-700);
@@ -90,22 +97,21 @@ button {
 .side .side-new {
   width: 100%;
   justify-content: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  margin-bottom: 12px;
+  gap: 11px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
 }
 .side-new .ic {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   color: var(--teal-700);
 }
 .side-label {
-  margin: 22px 10px 8px;
-  font-family: var(--mono);
-  font-size: 10.5px;
+  margin: 26px 12px 8px;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 .side-chats {
@@ -120,46 +126,64 @@ button {
 .side-chats button {
   display: block;
   flex: none;
-  font-size: 13.5px;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .side-empty {
-  padding: 2px 10px;
-  font-size: 13px;
-  color: var(--muted);
+  padding: 2px 12px;
+  font-size: 13.5px;
+  color: var(--faint);
 }
 .side .side-biz {
-  margin: 8px 0;
-  padding: 7px 10px;
+  margin: 10px 0;
+  padding: 9px 12px;
   border-radius: var(--r);
-  font-size: 13.5px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 14px;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: background 0.25s var(--ease-soft), color 0.25s var(--ease-soft);
+}
+.side .side-biz:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
 }
 .side .side-biz .ic {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   color: var(--muted);
 }
 .side-foot {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   padding: 12px 6px 2px;
   border-top: 1px solid var(--line);
+}
+/* the playground's guest card: soft, white, no rule above it */
+.play .side-foot {
+  padding: 11px 12px;
+  border-top: 0;
+  border-radius: calc(var(--r) + 4px);
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
 .side-foot div {
   display: flex;
   flex-direction: column;
-  line-height: 1.3;
+  line-height: 1.35;
   min-width: 0;
 }
 .side-foot strong {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
 }
 .side-foot div span {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
 }
 .side-foot div span b {
@@ -167,14 +191,19 @@ button {
   color: var(--ink-2);
 }
 .me {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   flex: none;
+}
+.play .side-foot .me {
+  background: var(--teal-50);
+  color: var(--teal-700);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
 }
 .scrim {
   display: none;
@@ -184,7 +213,7 @@ button {
   height: 14px;
   border-radius: 50%;
   border: 2px solid transparent;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.9s linear infinite;
   flex: none;
 }
 .spin.light {
@@ -201,23 +230,29 @@ button {
 }
 .top {
   flex: none;
-  height: 56px;
+  height: 60px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--line);
+  padding: 0 var(--gutter);
+  background: var(--bg);
 }
 .top-title {
   flex: 1;
   min-width: 0;
   font-family: var(--display);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.play .top .env {
+  border-color: transparent;
+  background: var(--teal-50);
+  color: var(--teal-700);
 }
 .icon-btn {
   width: 36px;
@@ -227,6 +262,7 @@ button {
   color: var(--ink-2);
   display: none;
   place-items: center;
+  transition: background 0.25s var(--ease-soft), color 0.25s var(--ease-soft);
 }
 .icon-btn:hover {
   background: var(--hover);
@@ -249,14 +285,15 @@ button {
 .page h2 {
   font-family: var(--display);
   font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1.15;
 }
 .page-sub {
-  margin-top: 6px;
-  max-width: 65ch;
-  font-size: 15px;
+  margin-top: 8px;
+  max-width: 62ch;
+  font-size: 16px;
+  line-height: 1.6;
   color: var(--muted);
 }
 .muted {
@@ -265,16 +302,19 @@ button {
 }
 .blank {
   margin-top: 28px;
-  padding: 36px 24px;
-  border: 1px dashed var(--line-2);
+  padding: 40px 24px;
+  border: 1px solid var(--line);
   border-radius: var(--r-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-soft);
   text-align: center;
 }
 .blank p {
-  font-weight: 600;
+  font-weight: 500;
 }
 .blank span {
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.6;
   color: var(--muted);
 }
 .promises {
@@ -283,19 +323,20 @@ button {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 .promises li {
   position: relative;
-  padding-left: 26px;
-  font-size: 14.5px;
+  padding-left: 30px;
+  font-size: 15px;
+  line-height: 1.6;
   color: var(--ink-2);
 }
 .promises li::before {
   content: "";
   position: absolute;
-  left: 2px;
-  top: 6px;
+  left: 3px;
+  top: 7px;
   width: 11px;
   height: 6px;
   border-left: 1.75px solid var(--teal-700);
@@ -307,86 +348,99 @@ button {
    The playground
    ============================================================ */
 
-/* ---------- empty chat ---------- */
+/* ---------- empty chat: centred and calm ---------- */
 .home {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  background: radial-gradient(ellipse 70% 55% at 50% 38%, color-mix(in srgb, var(--teal-50) 70%, transparent), transparent 70%), var(--bg);
 }
 .home-inner {
   margin: auto;
   width: 100%;
-  max-width: calc(760px + 2 * var(--gutter));
+  max-width: calc(720px + 2 * var(--gutter));
   padding: 48px var(--gutter) 40px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
+  align-items: center;
+  text-align: center;
+}
+.home-mark .mark.big {
+  margin-bottom: 22px;
 }
 .home h1 {
   font-family: var(--display);
-  font-size: clamp(34px, 3.3vw, 56px);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.04;
+  font-size: clamp(32px, 3vw, 46px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 .home-sub {
-  margin: 14px 0 30px;
-  max-width: 58ch;
+  margin: 14px auto 34px;
+  max-width: 52ch;
   font-size: 16px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--muted);
   text-wrap: pretty;
 }
 .home .pin-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  background: var(--teal-900);
-  font-size: 20px;
-  font-weight: 600;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  margin-bottom: 22px;
+  display: grid;
+  place-items: center;
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+  color: var(--teal-700);
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 500;
 }
 .home .err {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 .home-sub + .err {
-  margin: -18px 0 22px;
+  margin: -20px 0 24px;
 }
 .suggest {
-  margin-top: 12px;
+  margin-top: 16px;
   width: 100%;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 .suggest button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
   text-align: left;
   border: 1px solid var(--line);
   background: var(--bg);
-  border-radius: var(--r);
-  padding: 10px 12px 10px 14px;
-  font-size: 13.5px;
+  border-radius: calc(var(--r) + 4px);
+  padding: 14px 16px 14px 18px;
+  font-size: 14.5px;
+  line-height: 1.45;
   color: var(--ink-2);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  box-shadow: 0 1px 2px rgba(31, 45, 58, 0.03);
+  transition: transform 0.3s var(--ease-soft), box-shadow 0.3s var(--ease-soft), border-color 0.3s var(--ease-soft),
+    color 0.3s var(--ease-soft);
 }
 .suggest button .ic {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   color: var(--faint);
-  transition: transform 0.2s var(--ease), color 0.15s;
+  transition: transform 0.3s var(--ease-soft), color 0.3s var(--ease-soft);
 }
 .suggest button:hover:not(:disabled) {
-  background: var(--canvas);
-  border-color: var(--line-2);
+  transform: translateY(-2px);
+  border-color: var(--teal-100);
+  box-shadow: var(--shadow-soft);
   color: var(--ink);
 }
 .suggest button:hover:not(:disabled) .ic {
@@ -397,31 +451,31 @@ button {
   opacity: 0.5;
   cursor: default;
 }
-/* the floor of the empty state: the three rules of the checkout */
+/* the floor of the empty state: the three rules of the checkout, as quiet words */
 .home-facts {
   flex: none;
   list-style: none;
-  margin: 0;
-  padding: 0 var(--gutter);
+  width: 100%;
+  max-width: calc(980px + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 8px var(--gutter) 30px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--line);
+  gap: 28px;
 }
 .home-facts li {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 18px 28px 24px 0;
+  align-items: flex-start;
+  gap: 10px;
   font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--ink-2);
+  line-height: 1.55;
+  color: var(--muted);
 }
-.home-facts li + li {
-  padding-left: 28px;
-  border-left: 1px solid var(--line);
-}
-.home-facts li span:last-child {
-  max-width: 44ch;
+.home-facts li .ic {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--teal-500);
 }
 
 /* ---------- composer ---------- */
@@ -429,17 +483,18 @@ button {
   width: 100%;
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  padding: 8px 8px 8px 16px;
-  border: 1px solid var(--line-2);
-  border-radius: 12px;
+  gap: 10px;
+  padding: 10px 10px 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
   background: var(--bg);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 28px -20px rgba(0, 0, 0, 0.28);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-soft);
+  text-align: left;
+  transition: border-color 0.25s var(--ease-soft), box-shadow 0.25s var(--ease-soft);
 }
 .composer:focus-within {
-  border-color: var(--teal-700);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal-700) 14%, transparent);
+  border-color: var(--teal-400);
+  box-shadow: 0 0 0 4px rgba(46, 191, 174, 0.14), var(--shadow-soft);
 }
 .composer textarea {
   flex: 1;
@@ -450,39 +505,40 @@ button {
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 15.5px;
-  line-height: 1.5;
-  padding: 6px 0;
+  font-size: 16px;
+  line-height: 1.55;
+  padding: 7px 0;
   max-height: 180px;
   text-align: left;
 }
 .composer textarea::placeholder {
-  color: var(--muted);
+  color: var(--faint);
 }
 .home .composer {
-  padding: 12px 12px 12px 18px;
+  padding: 14px 14px 14px 20px;
 }
 .home .composer textarea {
-  min-height: 60px;
+  min-height: 64px;
   font-size: 16.5px;
 }
 .send {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border: 0;
   border-radius: var(--r);
   background: var(--teal-700);
   color: #fff;
   display: grid;
   place-items: center;
-  transition: background 0.15s, transform 0.12s var(--ease);
+  transition: background 0.25s var(--ease-soft), transform 0.25s var(--ease-soft);
 }
 .send:hover:not(:disabled) {
   background: var(--teal-800);
 }
 .send:disabled {
-  background: var(--line-2);
+  background: var(--bubble);
+  color: var(--faint);
   cursor: default;
 }
 .send:active:not(:disabled) {
@@ -504,125 +560,124 @@ button {
 }
 .thread-inner {
   width: 100%;
-  max-width: calc(1040px + 2 * var(--gutter));
+  max-width: calc(820px + 2 * var(--gutter));
   margin: 0 auto;
-  padding: 28px var(--gutter) 40px;
+  padding: 32px var(--gutter) 48px;
   display: flex;
   flex-direction: column;
-  gap: 36px;
+  gap: 44px;
 }
 .turn {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 .you {
   align-self: flex-end;
-  max-width: min(78%, 72ch);
+  max-width: min(78%, 64ch);
   background: var(--teal-50);
   color: var(--ink);
-  border-radius: 12px;
-  padding: 10px 14px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal-100) 70%, transparent);
-  animation: rise 0.5s var(--ease) both;
+  border-radius: 18px 18px 6px 18px;
+  padding: 11px 17px;
+  animation: soft-up 0.7s var(--ease) both;
 }
 .you p {
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 15.5px;
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 .agent {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 16px;
+}
+.agent > .mark {
+  margin-top: 1px;
 }
 .agent-body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 .reply {
-  max-width: 65ch;
-  font-size: 15.5px;
+  max-width: 64ch;
+  font-size: 16px;
   line-height: 1.65;
+  color: var(--ink);
   white-space: pre-wrap;
-  animation: rise 0.55s var(--ease) 0.2s both;
+  animation: soft-up 0.8s var(--ease) 0.15s both;
 }
-/* the pass arrives after the trace has folded away */
+/* the pass arrives after the trace has folded away, with room around it */
+.agent-body .pass {
+  margin: 6px 0 4px;
+}
 .agent-body .pass-enter {
-  animation-delay: 0.42s;
+  animation-delay: 0.4s;
 }
 .pass-err {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
 }
 
 /* ---------- the trace: who did what, in order ----------
    four lanes: your assistant, the business's Secretary, the server, PayPal */
 .trace {
   width: 100%;
-  max-width: 720px;
+  max-width: 680px;
 }
 .trace-head {
   border: 0;
   background: transparent;
   border-radius: var(--r);
-  padding: 4px 6px 4px 0;
+  padding: 5px 10px 5px 0;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   max-width: 100%;
-  font-size: 13.5px;
-  color: var(--ink-2);
+  font-size: 14px;
+  color: var(--muted);
+  transition: color 0.25s var(--ease-soft);
 }
 .trace-head:hover {
   color: var(--ink);
 }
 .trace-ico {
-  width: 24px;
+  width: 20px;
   height: 20px;
   flex: none;
   display: grid;
   place-items: center;
-  color: var(--muted);
+  color: var(--teal-500);
 }
 .trace-ico .ic {
+  width: 16px;
+  height: 16px;
+}
+.trace-ico .spin {
   width: 15px;
   height: 15px;
+  border-width: 1.75px;
+  border-color: var(--teal-100);
+  border-top-color: var(--teal-500);
+  animation-duration: 1.1s;
 }
 .trace-title {
   font-weight: 500;
+  color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.trace-strip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: none;
-}
-.trace-strip i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--lane);
-}
-.trace.open .trace-strip {
-  display: none;
-}
 .trace-count {
-  font-family: var(--mono);
-  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   white-space: nowrap;
 }
 .chev {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   color: var(--faint);
-  transition: transform 0.25s var(--ease);
+  transition: transform 0.35s var(--ease);
 }
 .trace.open .chev {
   transform: rotate(90deg);
@@ -631,96 +686,72 @@ button {
   display: grid;
   grid-template-rows: 0fr;
   visibility: hidden;
-  transition: grid-template-rows 0.4s var(--ease), visibility 0s 0.4s;
+  transition: grid-template-rows 0.5s var(--ease), visibility 0s 0.5s;
 }
 .trace.open .trace-body {
   grid-template-rows: 1fr;
   visibility: visible;
-  transition: grid-template-rows 0.4s var(--ease), visibility 0s;
+  transition: grid-template-rows 0.5s var(--ease), visibility 0s;
 }
 .trace-steps {
   list-style: none;
   min-height: 0;
   overflow: hidden;
-  margin: 0;
-  padding: 0;
+  margin: 0 0 0 9.5px;
+  padding: 0 0 0 20px;
+  border-left: 1px solid var(--line);
 }
 .trace-step {
-  --lane: var(--muted);
-  position: relative;
+  --chip-bg: var(--bubble);
+  --chip-ink: var(--slate);
   display: grid;
-  grid-template-columns: 24px 132px minmax(0, 1fr);
-  column-gap: 10px;
+  grid-template-columns: 124px minmax(0, 1fr);
+  column-gap: 12px;
   align-items: start;
-  padding: 5px 0;
-  font-size: 13.5px;
-  line-height: 20px;
+  padding: 6px 0;
+  font-size: 14px;
+  line-height: 22px;
   color: var(--ink-2);
+  animation: step-in 0.7s var(--ease) both;
 }
 .trace-step:first-child {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 .trace-step:last-child {
-  margin-bottom: 4px;
-}
-/* the rail that joins the dots */
-.trace-step::before {
-  content: "";
-  position: absolute;
-  left: 11.5px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--line-2);
-}
-.trace-step:first-child::before {
-  top: 15px;
-}
-.trace-step:last-child::before {
-  bottom: auto;
-  height: 15px;
-}
-.trace-step:only-child::before {
-  display: none;
-}
-.trace-dot {
-  position: relative;
-  z-index: 1;
-  justify-self: center;
-  margin-top: 6.5px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--lane);
-  color: var(--lane);
-  box-shadow: 0 0 0 3px var(--bg);
+  margin-bottom: 6px;
 }
 .trace-lane {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--mono);
-  font-size: 10.5px;
+  padding: 0 9px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--chip-bg);
+  color: var(--chip-ink);
+  font-size: 12.5px;
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   white-space: nowrap;
-  color: var(--lane);
 }
 .trace-lane svg {
   flex: none;
 }
 .lane-assistant {
-  --lane: var(--ink);
+  --chip-bg: var(--bubble);
+  --chip-ink: var(--slate);
 }
 .lane-secretary {
-  --lane: var(--teal-700);
+  --chip-bg: var(--teal-50);
+  --chip-ink: var(--teal-700);
 }
 .lane-server {
-  --lane: var(--muted);
+  --chip-bg: var(--bubble);
+  --chip-ink: var(--muted);
 }
 .lane-paypal {
-  --lane: var(--pp-navy);
+  --chip-bg: color-mix(in srgb, var(--pp-blue) 9%, #fff);
+  --chip-ink: var(--pp-navy);
 }
 .trace-text {
   min-width: 0;
@@ -732,37 +763,20 @@ button {
 .trace-step.bad .trace-text {
   color: var(--red);
 }
-/* the step being worked on right now */
-.trace-step.is-now .trace-dot {
-  animation: live-dot 1.3s ease-out infinite;
-}
+/* the step being worked on right now: a slow, gentle shimmer across its words */
 .trace-step.is-now .trace-text {
-  color: var(--ink);
-}
-.trace-now {
-  display: inline-flex;
-  gap: 3px;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-.trace-now i {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--lane);
-  animation: blink 1.1s ease-in-out infinite;
-}
-.trace-now i:nth-child(2) {
-  animation-delay: 0.18s;
-}
-.trace-now i:nth-child(3) {
-  animation-delay: 0.36s;
+  background: linear-gradient(90deg, var(--ink-2) 0%, var(--ink-2) 38%, var(--teal-400) 50%, var(--ink-2) 62%, var(--ink-2) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2.6s var(--ease-soft) infinite;
 }
 
 /* PayPal's button in test mode: a stand-in for the real SDK button */
 .pp {
   width: 100%;
-  height: 44px;
+  height: 46px;
   border: 0;
   border-radius: var(--r);
   background: var(--gold);
@@ -773,7 +787,7 @@ button {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  transition: filter 0.15s, transform 0.12s var(--ease);
+  transition: filter 0.25s var(--ease-soft), transform 0.25s var(--ease-soft);
 }
 .pp b {
   font-family: var(--font);
@@ -788,7 +802,7 @@ button {
   color: var(--pp-blue);
 }
 .pp:hover:not(:disabled) {
-  filter: brightness(0.96);
+  filter: brightness(0.97);
 }
 .pp:active:not(:disabled) {
   transform: translateY(1px);
@@ -798,117 +812,143 @@ button {
   opacity: 0.8;
 }
 .pass-pay {
-  min-height: 44px;
+  width: 100%;
+  min-height: 46px;
+  border-radius: var(--r);
+}
+.pass-pay > div {
+  width: 100%;
 }
 
 /* the quiet line under a paid pass */
 .booked {
-  max-width: 65ch;
+  max-width: 64ch;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: 13.5px;
-  line-height: 20px;
+  gap: 9px;
+  font-size: 14px;
+  line-height: 22px;
   color: var(--muted);
-  animation: rise 0.5s var(--ease) 0.3s both;
+  animation: soft-up 0.7s var(--ease) 0.3s both;
 }
 .booked ~ .reply {
   animation-delay: 0.45s;
 }
 .booked .ic {
-  width: 14px;
-  height: 14px;
-  margin-top: 3px;
+  width: 15px;
+  height: 15px;
+  margin-top: 3.5px;
   color: var(--green);
 }
 .booked .linkish {
   margin-left: 6px;
 }
 .booked strong {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink);
 }
 .booked b {
   font-weight: 500;
 }
 
-/* dock */
+/* dock: the composer, on a soft fade so the thread slips under it */
 .dock {
   flex: none;
+  position: relative;
   width: 100%;
-  max-width: calc(1040px + 2 * var(--gutter));
+  max-width: calc(820px + 2 * var(--gutter));
   margin: 0 auto;
-  padding: 0 var(--gutter) 14px;
+  padding: 0 var(--gutter) 16px;
+}
+.dock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--bg));
+  pointer-events: none;
 }
 .dock-note {
-  margin-top: 8px;
+  margin-top: 10px;
   text-align: center;
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 12.5px;
+  color: var(--faint);
 }
 
 /* ---------- playground pages: they fill the width ---------- */
 .play .page-inner {
   max-width: none;
   margin: 0;
-  padding: 36px var(--gutter) 64px;
+  padding: 40px var(--gutter) 72px;
 }
 .play .page h2 {
-  font-size: clamp(28px, 2.4vw, 36px);
-  letter-spacing: -0.035em;
+  font-size: clamp(28px, 2.3vw, 36px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 .play .blank {
-  margin-top: 32px;
-  padding: 56px 24px;
+  margin-top: 36px;
+  padding: 64px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .play .blank p {
   font-family: var(--display);
-  font-size: 20px;
+  font-size: 21px;
+  font-weight: 500;
   letter-spacing: -0.02em;
 }
 .play .blank span {
   max-width: 46ch;
 }
 .play .blank .btn-dark {
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
-/* bookings: a ledger */
+/* bookings: soft cards, generous rows */
 .group {
-  margin: 36px 0 10px;
+  margin: 40px 0 14px;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: 10px;
+}
+.play .group .eyebrow {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--ink);
 }
 .group .num {
-  font-size: 11px;
-  color: var(--faint);
+  font-size: 13px;
+  color: var(--muted);
 }
 .bk-list {
   container-type: inline-size;
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   background: var(--bg);
+  box-shadow: var(--shadow-soft);
 }
 .bk {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px 96px minmax(0, 230px);
+  grid-template-columns: minmax(0, 1fr) 112px 104px minmax(0, 240px);
   grid-template-areas:
     "what status amt act"
     "when status amt act";
   align-items: center;
-  gap: 6px 28px;
-  padding: 18px 20px;
+  gap: 6px 32px;
+  padding: 24px 28px;
 }
 @container (min-width: 1240px) {
   .bk {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 120px 104px minmax(0, 260px);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 120px 112px minmax(0, 270px);
     grid-template-areas: "what when status amt act";
-    padding: 20px 24px;
+    padding: 26px 32px;
   }
 }
 @container (max-width: 700px) {
@@ -919,8 +959,8 @@ button {
       "when when when"
       "status act act";
     align-items: start;
-    gap: 10px 16px;
-    padding: 16px;
+    gap: 12px 16px;
+    padding: 20px;
   }
   .bk-status {
     align-self: center;
@@ -936,16 +976,17 @@ button {
   grid-area: what;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
   min-width: 0;
 }
 .bk-what strong {
-  font-size: 15.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 .bk-what span {
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--muted);
 }
 .bk-when {
@@ -954,11 +995,11 @@ button {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 .bk-ref {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--muted);
 }
 .bk-status {
@@ -969,9 +1010,9 @@ button {
   grid-area: amt;
   justify-self: end;
   font-family: var(--display);
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 .bk-act {
@@ -983,7 +1024,7 @@ button {
   min-width: 0;
 }
 .bk-note {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   text-align: right;
 }
@@ -996,7 +1037,7 @@ button {
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--ink-2);
 }
 .confirm div {
@@ -1006,12 +1047,12 @@ button {
 .bk .btn-line,
 .bk .btn-danger,
 .bk .btn-ghost {
-  padding: 7px 12px;
-  font-size: 13px;
+  padding: 8px 14px;
+  font-size: 13.5px;
 }
 .bk-msg {
   grid-column: 1 / -1;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--green);
 }
 .bk-msg.bad {
@@ -1020,37 +1061,42 @@ button {
 
 /* spending limit */
 .limit-grid {
-  margin-top: 32px;
+  margin-top: 36px;
   display: grid;
   grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
-  gap: 28px clamp(28px, 5vw, 80px);
+  gap: 32px clamp(32px, 5vw, 88px);
   align-items: start;
 }
 .limit {
-  padding: 22px 24px 20px;
+  padding: 28px 30px 26px;
   border: 1px solid var(--line);
   border-radius: var(--r-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-soft);
+}
+.limit .eyebrow {
+  color: var(--muted);
 }
 .limit-val {
-  margin-top: 6px;
+  margin-top: 8px;
   font-family: var(--display);
   font-size: 64px;
-  font-weight: 600;
-  letter-spacing: -0.045em;
+  font-weight: 500;
+  letter-spacing: -0.03em;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
 .limit input {
   display: block;
   width: 100%;
-  margin: 18px 0 6px;
+  margin: 22px 0 8px;
   accent-color: var(--teal-700);
 }
 .limit-scale {
   display: flex;
   justify-content: space-between;
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 .limit-grid .promises {
@@ -1059,7 +1105,7 @@ button {
   max-width: 60ch;
 }
 .limit-grid .promises li {
-  padding: 13px 0 13px 28px;
+  padding: 16px 0 16px 30px;
   border-top: 1px solid var(--line);
 }
 .limit-grid .promises li:first-child {
@@ -1067,43 +1113,44 @@ button {
   padding-top: 0;
 }
 .limit-grid .promises li::before {
-  top: 19px;
+  top: 23px;
 }
 .limit-grid .promises li:first-child::before {
-  top: 6px;
+  top: 7px;
 }
 
 /* use in your assistant: the picker belongs to connect.css, this only places it */
 .connect-fit {
-  margin-top: 8px;
+  margin-top: 12px;
   max-width: 1040px;
 }
 .connect-fit ~ .promises {
   max-width: 72ch;
-  margin-top: 32px;
+  margin-top: 36px;
 }
 .connect-fit ~ .promises b {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 14.5px;
+  font-weight: 600;
   color: var(--ink);
 }
 .play .page .fine {
   max-width: 72ch;
-  margin-top: 18px;
+  margin-top: 20px;
+  font-size: 14px;
   color: var(--muted);
 }
 
 /* ============================================================
-   The hosted pay page: a night stage, and the pass
+   The hosted pay page: a light stage, and the pass
    ============================================================ */
 .stage {
-  --pass-notch: var(--night);
+  --pass-notch: var(--mist);
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--night);
-  color: #fff;
+  background: radial-gradient(ellipse 60% 48% at 50% 42%, var(--teal-50), rgba(238, 248, 246, 0) 72%),
+    linear-gradient(180deg, var(--bg) 0%, var(--mist) 100%);
+  color: var(--ink);
 }
 .stage-top {
   flex: none;
@@ -1114,9 +1161,9 @@ button {
   padding: 22px var(--gutter);
 }
 .stage-top .badge {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
+  background: var(--teal-50);
+  color: var(--teal-700);
 }
 .stage-main {
   flex: 1;
@@ -1124,68 +1171,91 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 26px;
-  padding: 16px var(--gutter) 72px;
+  gap: 28px;
+  padding: 24px var(--gutter) 80px;
   text-align: center;
 }
 .stage-lede {
-  max-width: 40ch;
+  max-width: 34ch;
   font-family: var(--display);
-  font-size: clamp(22px, 2vw, 34px);
+  font-size: 26px;
   font-weight: 500;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-  color: rgba(255, 255, 255, 0.94);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--ink);
   text-wrap: balance;
-  animation: rise 0.65s var(--ease) both;
+  animation: soft-up 0.8s var(--ease) both;
 }
 .stage .pass {
   max-width: 460px;
 }
 .stage .pass-enter {
-  animation-delay: 0.18s;
+  animation-delay: 0.2s;
 }
 .stage-trust {
-  max-width: 62ch;
-  font-size: 13.5px;
+  max-width: 54ch;
+  font-size: 14px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.64);
+  color: var(--muted);
   text-wrap: pretty;
-  animation: fade 0.8s var(--ease) 0.7s both;
+  animation: fade 0.9s var(--ease-soft) 0.7s both;
 }
 .stage-wait {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.72);
-}
-.stage-wait .spin {
-  border-color: rgba(255, 255, 255, 0.22);
-  border-top-color: var(--teal-400);
+  font-size: 15px;
+  color: var(--muted);
 }
 .stage-msg {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  animation: rise 0.65s var(--ease) both;
-}
-.stage-msg .eyebrow {
-  color: var(--teal-400);
+  animation: soft-up 0.8s var(--ease) both;
 }
 .stage-msg h1 {
   font-family: var(--display);
-  font-size: clamp(30px, 3vw, 44px);
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.08;
+  font-size: clamp(28px, 2.6vw, 38px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
 }
 .stage-msg p {
   max-width: 48ch;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+}
+
+/* ---------- motion for these surfaces ---------- */
+@keyframes soft-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
 }
 
 /* ---------- small screens ---------- */
@@ -1204,13 +1274,14 @@ button {
     top: 0;
     bottom: 0;
     left: 0;
-    width: 284px;
+    width: 288px;
+    border-right: 0;
     transform: translateX(-100%);
-    transition: transform 0.3s var(--ease);
+    transition: transform 0.4s var(--ease);
   }
   .drawer-open .side {
     transform: none;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 0 48px rgba(31, 45, 58, 0.14);
   }
   .scrim {
     display: block;
@@ -1218,10 +1289,10 @@ button {
     inset: 0;
     z-index: 20;
     border: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(31, 45, 58, 0.24);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.3s;
+    transition: opacity 0.4s var(--ease-soft);
   }
   .drawer-open .scrim {
     opacity: 1;
@@ -1234,8 +1305,18 @@ button {
     padding: 0 8px;
     gap: 6px;
   }
+  .top-title {
+    font-size: 17px;
+  }
   .home-inner {
-    padding: 28px 16px 28px;
+    padding: 32px 16px 28px;
+  }
+  .home h1 {
+    font-size: 30px;
+  }
+  .home-sub {
+    font-size: 15px;
+    margin-bottom: 26px;
   }
   .home .composer textarea {
     min-height: 48px;
@@ -1246,62 +1327,63 @@ button {
   }
   .home-facts {
     grid-template-columns: minmax(0, 1fr);
-    padding: 0 16px 8px;
-  }
-  .home-facts li {
-    padding: 14px 0;
-  }
-  .home-facts li + li {
-    padding-left: 0;
-    border-left: 0;
-    border-top: 1px solid var(--line);
+    gap: 14px;
+    padding: 4px 20px 28px;
   }
   .thread-inner {
-    padding: 18px 16px 28px;
-    gap: 30px;
+    padding: 20px 16px 32px;
+    gap: 36px;
   }
   .dock {
-    padding: 0 12px 10px;
+    padding: 0 12px 12px;
   }
   .agent {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 10px;
   }
   .agent > .mark {
-    display: none;
+    width: 24px;
+    height: 24px;
+  }
+  .composer {
+    gap: 8px;
+    padding: 8px 8px 8px 14px;
+  }
+  .home .composer {
+    padding: 12px 10px 10px 16px;
+  }
+  .send {
+    width: 36px;
+    height: 36px;
   }
   .you {
     max-width: 88%;
   }
-  .trace-step {
-    grid-template-columns: 24px minmax(0, 1fr);
-    padding: 6px 0;
+  .trace-steps {
+    margin-left: 9.5px;
+    padding-left: 14px;
   }
-  .trace-lane,
-  .trace-text {
-    grid-column: 2;
+  .trace-step {
+    display: block;
+    padding: 5px 0;
+    line-height: 1.55;
   }
   .trace-lane {
-    line-height: 16px;
-    margin-top: 2px;
-  }
-  .trace-step:first-child::before {
-    top: 14px;
-  }
-  .trace-step:last-child::before {
-    height: 14px;
-  }
-  .trace-dot {
-    margin-top: 6.5px;
+    display: inline-flex;
+    vertical-align: 1px;
+    margin-right: 8px;
+    height: 20px;
+    padding: 0 7px;
+    font-size: 12px;
   }
   .page-inner {
     padding: 18px 16px 40px;
   }
   .play .page-inner {
-    padding: 24px 16px 48px;
+    padding: 28px 16px 48px;
   }
-  .trace-strip {
-    display: none;
+  .limit {
+    padding: 22px 20px;
   }
   .limit-val {
     font-size: 52px;
@@ -1310,7 +1392,11 @@ button {
     padding: 18px 16px;
   }
   .stage-main {
-    padding: 8px 16px 48px;
+    justify-content: flex-start;
+    padding: 20px 16px 48px;
     gap: 22px;
+  }
+  .stage-lede {
+    font-size: 23px;
   }
 }

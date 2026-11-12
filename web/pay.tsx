@@ -1,6 +1,6 @@
 // The hosted pay page (/pay/<token>). Any AI assistant (Claude through MCP, or
 // our own playground) sends the customer here to approve one offer in PayPal.
-// A night stage, and on it the pass: the same object the chat and the front door show.
+// A light stage, and on it the pass: the same object the chat and the front door show.
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { useCallback, useEffect, useState } from "react";
 import { HoldClock, Mark, Pass, Seal } from "./ui.tsx";
@@ -80,10 +80,10 @@ export function PayPage({ token }: { token: string }) {
   const clock = `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, "0")}`;
 
   return (
-    <div className="stage on-night">
+    <div className="stage">
       <header className="stage-top">
         <span className="brand">
-          <Mark light /> Ordina <em className="for">Agent Checkout</em>
+          <Mark /> Ordina <em className="for">Agent Checkout</em>
         </span>
         {offer && paypal.mode !== "live" && (
           <span className="badge" title="Test mode: no real money moves">
@@ -107,9 +107,9 @@ export function PayPage({ token }: { token: string }) {
         )}
         {offer && (
           <>
-            <p className="stage-lede">
+            <h1 className="stage-lede">
               {booked ? "Booked" : expired ? "This hold has ended" : `Your agent arranged this for ${offer.customerName}`}
-            </p>
+            </h1>
             <Pass
               label="Payment offer"
               title={offer.service}

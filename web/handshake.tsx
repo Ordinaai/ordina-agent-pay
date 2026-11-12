@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { HoldClock, Icon, Pass, Seal, SecretaryStar } from "./ui.tsx";
 
 const ASK = "Book me a silk press in Lagos tomorrow morning, up to $50.";
-const PHASES = ["Ask", "Agree", "Check", "Approve", "Booked"];
+const PHASES = ["You ask", "Agents agree", "Checked", "You approve", "Booked"];
 
 // Each beat: when it starts (ms into a run) and which phase it belongs to.
 const BEATS = [

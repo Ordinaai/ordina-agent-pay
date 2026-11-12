@@ -128,7 +128,7 @@ const money = (s?: string) => s?.match(/(\d+\.\d{2})/)?.[1];
 const shortWhen = (t: number) => new Date(t).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 // ---------- turn model: one request from you and everything that followed ----------
-// Each step belongs to a lane: who did it. The trace shows the lane as a small tag and a rail dot.
+// Each step belongs to a lane: who did it. The trace shows the lane as a small soft chip.
 type Lane = "assistant" | "secretary" | "server" | "paypal";
 const LANES: Record<Lane, string> = { assistant: "Your assistant", secretary: "Secretary", server: "Server", paypal: "PayPal" };
 type Step = { id: number; text: string; tone?: "bad" | "ok"; lane: Lane };
@@ -442,6 +442,9 @@ function ChatView({
             </>
           ) : (
             <>
+              <span className="home-mark rise">
+                <Mark big />
+              </span>
               <h1 className="rise">What can I book for you?</h1>
               <p className="home-sub rise" style={{ "--i": 1 } as CSSProperties}>
                 {handleMissing
@@ -466,15 +469,15 @@ function ChatView({
         </div>
         <ul className="home-facts">
           <li>
-            <span className="eyebrow">Price</span>
+            <Icon d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9ZM8 8h.01" />
             <span>Prices come from the business, never from the AI.</span>
           </li>
           <li>
-            <span className="eyebrow">Payment</span>
+            <Icon d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3ZM9 12l2 2 4-4" />
             <span>Your agent never pays by itself. Every payment waits for you in PayPal.</span>
           </li>
           <li>
-            <span className="eyebrow">Booking</span>
+            <Icon d="M7 3v3M17 3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1ZM9 15l2 2 4-4" />
             <span>A booking only exists once PayPal confirms the payment.</span>
           </li>
         </ul>
@@ -581,14 +584,9 @@ function TurnView({
                       ? `Worked with ${turn.businesses.join(", ")}`
                       : "Looked into it"}
                 </span>
-                <span className="trace-strip" aria-hidden>
-                  {steps.map((s) => (
-                    <i key={s.id} className={`lane-${s.lane}`} />
-                  ))}
-                </span>
                 {steps.length > 0 && (
                   <span className="trace-count">
-                    {steps.length} {steps.length === 1 ? "step" : "steps"}
+                    · {steps.length} {steps.length === 1 ? "step" : "steps"}
                   </span>
                 )}
                 <Icon d="M9 6l6 6-6 6" className="chev" />
@@ -598,22 +596,12 @@ function TurnView({
                   {steps.map((s, i) => {
                     const now = working && i === steps.length - 1;
                     return (
-                      <li key={s.id} className={`trace-step lane-${s.lane} rise ${s.tone ?? ""} ${now ? "is-now" : ""}`}>
-                        <i className="trace-dot" aria-hidden />
+                      <li key={s.id} className={`trace-step lane-${s.lane} ${s.tone ?? ""} ${now ? "is-now" : ""}`}>
                         <span className="trace-lane">
                           {s.lane === "secretary" && <SecretaryStar size={11} />}
                           {LANES[s.lane]}
                         </span>
-                        <span className="trace-text">
-                          {s.text}
-                          {now && (
-                            <span className="trace-now" aria-hidden>
-                              <i />
-                              <i />
-                              <i />
-                            </span>
-                          )}
-                        </span>
+                        <span className="trace-text">{s.text}</span>
                       </li>
                     );
                   })}

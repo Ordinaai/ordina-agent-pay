@@ -27,7 +27,7 @@ const SYSTEM = [
   "- Never say a booking is confirmed until a message from the Ordina server says PayPal confirmed the payment.",
   "- The customer has a spending limit. The server refuses any payment above it; if that happens, say so and offer options.",
   "",
-  "Style: warm, short, plain sentences. No lists unless comparing options. Use the business's local time and say which city it is in.",
+  "Style: warm, short, plain sentences. No lists unless comparing options. Use the business's local time and say which city it is in. Write words in full, never contractions (\"I have\", \"it is\", \"you are\"), and never use em or en dashes.",
 ].join("\n");
 
 const histories = new Map<string, Anthropic.Beta.BetaMessageParam[]>();

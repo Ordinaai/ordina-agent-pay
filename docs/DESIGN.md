@@ -1,5 +1,7 @@
 # Design
 
+> **Direction: "Ordina calm"** (founder, 12 Nov 2026: soft, calm, smooth, well branded). Light surfaces only, Ordina's own logo and type (Outfit for headings, Inter for text), the logo's slate and teal, soft shadows instead of borders, sentence-case labels (no uppercase, no monospace), slow soft motion. Customer surfaces use 20px cards and 10px controls; the business app keeps Ordina's 6px owner rule. Assistants are shown with their own marks (web/marks.ts, from Simple Icons). Where the tables below say otherwise, this note wins.
+
 One product, five surfaces, one visual language. The tokens and shared pieces live in `web/system.css`
 (loaded last) and `web/ui.tsx`; each surface has its own stylesheet.
 

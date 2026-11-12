@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from "react";
 import { Handshake } from "./handshake.tsx";
+import { MARKS } from "./marks.ts";
 import { Icon, Mark } from "./ui.tsx";
 import "./connect.css";
 
@@ -139,6 +140,47 @@ function idFromHash(): AssistantId | null {
   return ASSISTANTS.some((a) => a.id === id) ? (id as AssistantId) : null;
 }
 
+// ---------- the assistant's own mark, or a soft lettered tile when there is none ----------
+function Logo({ a, size = 24 }: { a: Assistant; size?: number }) {
+  const mark = MARKS[a.id];
+  return (
+    <span className={`cx-logo ${mark ? "" : "is-letter"}`} aria-hidden>
+      {mark ? (
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden>
+          <path d={mark.d} fill={mark.color} />
+        </svg>
+      ) : (
+        a.letter
+      )}
+    </span>
+  );
+}
+
+// Sections below the fold play their entrance when they first scroll into view.
+function useSeen<T extends HTMLElement>(): [RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver !== "function") {
+      setSeen(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setSeen(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return [ref, seen];
+}
+
 // ---------- copy with a fallback for browsers without the clipboard API ----------
 function selectContents(el: HTMLElement) {
   const range = document.createRange();
@@ -256,8 +298,10 @@ function Instructions({ a, address, onTry }: { a: Assistant; address: string; on
     return (
       <div className="cx-card">
         <div className="cx-block">
-          <p className="cx-lead">Microsoft Copilot does not let you add your own tools yet. You can still book through a business's own link, or try it here.</p>
-          <div className="cx-actions">
+          <p className="cx-lead">
+            Microsoft Copilot does not let you add your own tools yet. You can still book through a business's own link, or try it here.
+          </p>
+          <div className="cx-actions cx-actions-start">
             {onTry ? (
               <button type="button" className="btn-dark" onClick={onTry}>
                 Try it here <Icon d="M5 12h14M13 6l6 6-6 6" />
@@ -304,23 +348,31 @@ function Instructions({ a, address, onTry }: { a: Assistant; address: string; on
           </div>
         )}
       </div>
-      <div className="cx-split">
-        <div className="cx-block cx-how">
-          {a.steps && (
-            <div className="cx-steps">
-              {a.stepsTitle ? <h4 className="cx-steps-t">{a.stepsTitle}</h4> : <h4 className="eyebrow cx-label">Steps</h4>}
-              <ol>
-                {a.steps.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {a.note && <p className="cx-note">{a.note}</p>}
-        </div>
-        <div className="cx-block">
-          <AskIt />
-        </div>
+      <div className="cx-block cx-how">
+        {a.steps && (
+          <div className="cx-steps">
+            {a.stepsTitle ? <h4 className="cx-steps-t">{a.stepsTitle}</h4> : <h4 className="eyebrow cx-label">Steps</h4>}
+            <ol>
+              {a.steps.map((s, i) => (
+                <li key={s}>
+                  <span className="cx-step-n" aria-hidden>
+                    {i + 1}
+                  </span>
+                  <span>{s}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {a.note && (
+          <p className="cx-note">
+            <Icon d="M12 8.5v.01M12 11.5v5M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z" />
+            <span>{a.note}</span>
+          </p>
+        )}
+      </div>
+      <div className="cx-block">
+        <AskIt />
       </div>
     </div>
   );
@@ -359,50 +411,52 @@ export function ConnectPicker({ compact = false, onTry }: { compact?: boolean; o
     if (!compact) history.replaceState(null, "", `#${id}`);
   };
   const a = ASSISTANTS.find((x) => x.id === sel) ?? ASSISTANTS[0];
+  // On the front door the parts rise in as the section scrolls into view (see .cx-reveal in connect.css).
+  const rise = compact ? "" : "rise";
 
   return (
     <div className={`cx-picker ${compact ? "compact" : ""}`}>
-      <header className="cx-head">
-        <div className="cx-head-t">
-          {!compact && <span className="eyebrow">Connect your assistant</span>}
-          <h2 id="cx-step-1">Which assistant do you use?</h2>
-        </div>
-        {!compact && <p className="cx-head-sub">Add Ordina to it once. Then ask it to book a haircut, a class or a cake.</p>}
-      </header>
-
-      <div className="cx-cols">
-        <div className="cx-grid" role="group" aria-labelledby="cx-step-1">
-          {ASSISTANTS.map((x) => (
-            <button
-              key={x.id}
-              type="button"
-              className={`cx-tile ${x.id === "copilot" ? "soon" : ""}`}
-              aria-pressed={sel === x.id}
-              onClick={() => choose(x.id)}
-            >
-              <span className="cx-av" aria-hidden>
-                {x.letter}
-              </span>
-              <span className="cx-tile-t">
-                <span className="cx-name">{x.name}</span>
-                <span className="cx-tag">{x.tag}</span>
-              </span>
-              <Icon className="cx-chev" d="M9 6l6 6-6 6" />
-            </button>
-          ))}
-        </div>
-
-        <section className="cx-panel" aria-labelledby="cx-step-2" ref={stepTwo} key={a.id}>
-          <header className="cx-panel-h">
-            <span className="cx-av" aria-hidden>
-              {a.letter}
-            </span>
-            <h3 id="cx-step-2">
-              {a.id === "copilot" ? "Microsoft Copilot" : a.id === "other" ? "Add Ordina to your assistant" : `Add Ordina to ${a.name}`}
-            </h3>
-            <span className="badge">{a.tag}</span>
+      <div className="cx-picker-in">
+        <div className="cx-side">
+          <header className={`cx-head ${rise}`} style={step(0)}>
+            {!compact && <span className="eyebrow">Connect your assistant</span>}
+            <h2 id="cx-step-1">Which assistant do you use?</h2>
+            {!compact && <p className="cx-head-sub">Add Ordina to it once. Then ask it to book a haircut, a class or a cake.</p>}
           </header>
-          <Instructions a={a} address={address} onTry={onTry} />
+
+          <div className={`cx-grid ${rise}`} style={step(1)} role="group" aria-labelledby="cx-step-1">
+            {ASSISTANTS.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                className={`cx-tile ${x.id === "copilot" ? "soon" : ""}`}
+                aria-pressed={sel === x.id}
+                onClick={() => choose(x.id)}
+              >
+                <Logo a={x} />
+                <span className="cx-tile-t">
+                  <span className="cx-name">{x.name}</span>
+                  <span className="cx-tag">{x.tag}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <section className={`cx-panel ${rise}`} style={step(2)} aria-labelledby="cx-step-2" ref={stepTwo}>
+          {/* keyed, so a new choice cross-fades in rather than snapping */}
+          <div className="cx-panel-in" key={a.id}>
+            <header className="cx-panel-h">
+              <Logo a={a} size={26} />
+              <div className="cx-panel-t">
+                <h3 id="cx-step-2">
+                  {a.id === "copilot" ? "Microsoft Copilot" : a.id === "other" ? "Add Ordina to your assistant" : `Add Ordina to ${a.name}`}
+                </h3>
+                <p>{a.tag}</p>
+              </div>
+            </header>
+            <Instructions a={a} address={address} onTry={onTry} />
+          </div>
         </section>
       </div>
     </div>
@@ -415,10 +469,11 @@ const REPO = "https://github.com/Ordinaai/ordina-agent-pay";
 
 // The safety rules shown here keep their numbers from the README.
 const RULES = [
-  { n: "Rule 1", text: "Every price comes from the business's own list, never from what an agent writes." },
-  { n: "Rule 3", text: "No agent can pay. Only you approve, in PayPal." },
+  { n: "Rule 1", icon: "M5 7h14M5 12h14M5 17h9", text: "Every price comes from the business's own list, never from what an agent writes." },
+  { n: "Rule 3", icon: "M7 11V8a5 5 0 0 1 10 0v3M5.5 11h13v9h-13zM12 14.5v2", text: "No agent can pay. Only you approve, in PayPal." },
   {
     n: "Rule 4",
+    icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8.5 12.2l2.4 2.4 4.6-4.9",
     text: "A booking exists only when PayPal confirms the exact amount, paid to the right seller. Otherwise the money goes straight back.",
   },
 ];
@@ -447,13 +502,17 @@ export function ConnectPage() {
     document.getElementById(PICKER_ID)?.focus({ preventScroll: true });
   };
 
+  const [pickRef, pickSeen] = useSeen<HTMLElement>();
+  const [safeRef, safeSeen] = useSeen<HTMLElement>();
+  const [bandRef, bandSeen] = useSeen<HTMLElement>();
+
   return (
     <div className="cx">
       <main>
-        <section className="cx-hero on-night" aria-labelledby="cx-h1">
+        <section className="cx-hero" aria-labelledby="cx-h1">
           <div className="cx-bar">
             <a className="brand cx-brand rise" style={step(0)} href="/" aria-label="Ordina Agent Checkout, home">
-              <Mark light /> Ordina <em className="for">Agent Checkout</em>
+              <Mark /> Ordina <em className="for">Agent Checkout</em>
             </a>
             <nav className="cx-nav rise" style={step(0)} aria-label="Main">
               <a href="/try">Try the demo</a>
@@ -464,7 +523,7 @@ export function ConnectPage() {
           <div className="cx-hero-grid">
             <div className="cx-pitch">
               <p className="eyebrow rise" style={step(1)}>
-                Agent checkout for real-world services
+                Agent checkout for real services
               </p>
               <h1 id="cx-h1" className="rise" style={step(2)}>
                 <span>Your assistant books it.</span> <span className="cx-h1-b">You approve it.</span>
@@ -474,10 +533,10 @@ export function ConnectPage() {
                 Secretary, and brings you one PayPal payment to approve. It can never pay for you.
               </p>
               <div className="cx-cta rise" style={step(4)}>
-                <a className="btn-night" href="#connect" onClick={onConnect}>
+                <a className="btn-dark" href="#connect" onClick={onConnect}>
                   Connect your assistant
                 </a>
-                <a className="cx-quiet" href="/try">
+                <a className="btn-line" href="/try">
                   Try it without one <Icon d="M5 12h14M13 6l6 6-6 6" />
                 </a>
               </div>
@@ -485,51 +544,62 @@ export function ConnectPage() {
                 PayPal Sandbox demo. No real money moves.
               </p>
             </div>
-            <div className="cx-stage">
+            <div className="cx-stage rise" style={step(3)}>
               <Handshake />
             </div>
           </div>
         </section>
 
-        <section className="cx-sec cx-connect" id={PICKER_ID} tabIndex={-1} aria-labelledby="cx-step-1">
+        <section
+          className={`cx-sec cx-connect cx-reveal ${pickSeen ? "seen" : ""}`}
+          id={PICKER_ID}
+          tabIndex={-1}
+          aria-labelledby="cx-step-1"
+          ref={pickRef}
+        >
           <ConnectPicker />
         </section>
 
-        <section className="cx-sec cx-safety" aria-labelledby="cx-safety-h">
-          <header className="cx-sec-h">
+        <section className={`cx-sec cx-safety cx-reveal ${safeSeen ? "seen" : ""}`} aria-labelledby="cx-safety-h" ref={safeRef}>
+          <header className="cx-sec-h rise" style={step(0)}>
             <span className="eyebrow">Enforced by the server</span>
-            <h2 id="cx-safety-h">Safety is in the code, not the prompt</h2>
+            <h2 id="cx-safety-h">Safety lives in the code, not the prompt</h2>
           </header>
           <ul className="cx-rules">
-            {RULES.map((r) => (
-              <li key={r.n}>
-                <span className="eyebrow">{r.n}</span>
+            {RULES.map((r, i) => (
+              <li key={r.n} className="rise" style={step(i + 1)}>
+                <span className="cx-rule-ic" aria-hidden>
+                  <Icon d={r.icon} />
+                </span>
+                <span className="cx-rule-n">{r.n}</span>
                 <p>{r.text}</p>
               </li>
             ))}
           </ul>
-          <p className="cx-more">
+          <p className="cx-more rise" style={step(4)}>
             <a className="linkish" href={`${REPO}#safety-is-in-the-code-not-the-prompt`} target="_blank" rel="noreferrer">
               See all ten rules and their tests
             </a>
           </p>
         </section>
 
-        <section className="cx-band on-night" aria-labelledby="cx-biz-h">
-          <div className="cx-band-l">
-            <span className="eyebrow">For businesses</span>
-            <h2 id="cx-biz-h">
-              <span>Run a business?</span> <span>Let assistants book and pay you.</span>
-            </h2>
-          </div>
-          <div className="cx-band-r">
-            <p>
-              Paste your website link. We fill in what you sell, you check the prices, and you are live in about five minutes. Every booking
-              arrives paid.
-            </p>
-            <a className="btn-night" href="/business">
-              Set up my business
-            </a>
+        <section className={`cx-band-wrap cx-reveal ${bandSeen ? "seen" : ""}`} aria-labelledby="cx-biz-h" ref={bandRef}>
+          <div className="cx-band rise">
+            <div className="cx-band-l">
+              <span className="eyebrow">For businesses</span>
+              <h2 id="cx-biz-h">
+                <span>Run a business?</span> <span>Let assistants book and pay you.</span>
+              </h2>
+            </div>
+            <div className="cx-band-r">
+              <p>
+                Paste your website link. We fill in what you sell, you check the prices, and you are live in about five minutes. Every
+                booking arrives paid.
+              </p>
+              <a className="btn-dark" href="/business">
+                Set up my business
+              </a>
+            </div>
           </div>
         </section>
       </main>

@@ -53,9 +53,9 @@ export async function mockBuyerTurn(sessionId: string, text: string, tools: Agen
   const payment = { amount: offer.price, service: offer.item, date: offer.date, time: offer.time };
   const approval = await call(tools, "request_payment_approval", { offer_id: offer.offer_id }, onTool);
   if ("error" in approval) {
-    return `${pick.name} can do ${payment.service} on ${niceDate(payment.date)} at ${payment.time} for $${payment.amount}, but that's over your $${String(approval.error).match(/limit of USD (\d+)/)?.[1] ?? ""} spending limit, so I haven't sent you a payment. Raise your limit in Settings, or tell me what to change.`;
+    return `${pick.name} can do ${payment.service} on ${niceDate(payment.date)} at ${payment.time} for $${payment.amount}, but that is over your $${String(approval.error).match(/limit of USD (\d+)/)?.[1] ?? ""} spending limit, so I have not sent you a payment. Raise your limit in Settings, or tell me what to change.`;
   }
-  return `${pick.name} in ${pick.city} can do ${payment.service} on ${niceDate(payment.date)} at ${payment.time}, local time, for $${payment.amount}. I've held it for 15 minutes. Approve with PayPal below to confirm it.`;
+  return `${pick.name} in ${pick.city} can do ${payment.service} on ${niceDate(payment.date)} at ${payment.time}, local time, for $${payment.amount}. I have held it for 15 minutes. Approve with PayPal below to confirm it.`;
 }
 
 function pickDate(b: Business, lower: string, svcId: string): string | undefined {
@@ -89,9 +89,9 @@ export async function mockSecretaryTurn(b: Business, _sessionId: string, message
   if ("error" in hold) return String(hold.error);
   const pay = await call(tools, "create_payment", { hold_id: hold.hold_id }, onTool);
   if ("error" in pay) return String(pay.error);
-  return `Our best match is ${svc.name}. I've held ${niceDate(date)} at ${time} (${cityTime(b)} time) for ${name}, $${svc.price}, and created the PayPal order. It's only booked once they approve. ${b.policy}`;
+  return `Our best match is ${svc.name}. I have held ${niceDate(date)} at ${time} (${cityTime(b)} time) for ${name}, $${svc.price}, and created the PayPal order. It is only booked once they approve. ${b.policy}`;
 }
 
 export function mockAfterPayment(bk: Booking): string {
-  return `You're booked. PayPal confirmed $${bk.amount}, and ${bk.serviceName} on ${niceDate(bk.date)} at ${bk.time} is yours. Your reference is ${bk.ref}; it's in Bookings too.`;
+  return `You are booked. PayPal confirmed $${bk.amount}, and ${bk.serviceName} on ${niceDate(bk.date)} at ${bk.time} is yours. Your reference is ${bk.ref}, and it is in Bookings too.`;
 }

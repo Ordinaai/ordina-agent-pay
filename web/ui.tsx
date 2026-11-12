@@ -9,16 +9,11 @@ export function Icon({ d, className }: { d: string; className?: string }) {
   );
 }
 
-/** Ordina's ring. On a dark ground pass `light` so the main arc turns white. */
-export function Mark({ big, small, light }: { big?: boolean; small?: boolean; light?: boolean }) {
+/** Ordina's own mark (the ring from the logo). `light` is kept for older call sites. */
+export function Mark({ big, small }: { big?: boolean; small?: boolean; light?: boolean }) {
   return (
     <span className={`mark ${big ? "big" : ""} ${small ? "small" : ""}`} aria-hidden>
-      <svg viewBox="0 0 32 32">
-        {/* the ring, open at the top right */}
-        <path d="M20.9 5.9A11.2 11.2 0 1 0 22.6 25" fill="none" stroke={light ? "#ffffff" : "#243b53"} strokeWidth="6.4" />
-        {/* the teal quarter that closes it */}
-        <path d="M24.6 8.8A11.2 11.2 0 0 1 22.6 25" fill="none" stroke="#2ebfae" strokeWidth="6.4" />
-      </svg>
+      <img src="/brand/ordina-mark.png" alt="" width={48} height={48} decoding="async" />
     </span>
   );
 }

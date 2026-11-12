@@ -1,7 +1,9 @@
 /* The business owner's app (/business) and a few pieces other surfaces borrow from it.
-   Tokens, buttons, fields, badges and motion come from system.css (loaded last); this file
-   only lays things out. Owner rules: 6px everywhere, white cards with --shadow-card and no
-   border on a --canvas page, money and references in --mono, the page fills the screen. */
+   "Ordina calm": tokens, buttons, fields, badges and motion come from system.css (loaded last);
+   this file lays things out. Owner rules: light only, 6px corners (var(--r), var(--r-card)),
+   white cards with --shadow-card and no border on a --mist page, hairlines in --line,
+   Outfit 500 for headings and big figures, Inter for everything else, labels in sentence case
+   (never uppercase, never tracked out), money in tabular figures, hovers 200ms, nothing pulses. */
 
 /* ---------- borrowed by the customer app (App.tsx) ---------- */
 .side-biz {
@@ -32,13 +34,13 @@
   color: var(--bg);
   font-family: var(--display);
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .center-load {
   height: 100%;
   display: grid;
   place-items: center;
-  background: var(--canvas);
+  background: var(--mist);
 }
 .icon-btn.show {
   display: grid;
@@ -86,17 +88,15 @@
   padding-left: 12px;
 }
 .money-in span {
-  font-family: var(--mono);
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--faint);
 }
 .field .money-in input,
 .money-in input {
   min-width: 0;
   padding-left: 6px;
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: 14.5px;
 }
 .biz .field select {
   -webkit-appearance: none;
@@ -122,79 +122,102 @@
 .seg-mini button {
   border: 0;
   background: transparent;
-  padding: 5px 11px;
-  font-size: 12.5px;
+  padding: 5px 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--muted);
+  transition: background 0.2s var(--ease-soft), color 0.2s var(--ease-soft), box-shadow 0.2s var(--ease-soft);
+}
+.seg-mini button:hover:not(.on) {
+  color: var(--ink);
 }
 
 /* ---------- the business shell (scoped, so it wins over the customer shell) ---------- */
 .app.biz {
   height: 100%;
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
-  background: var(--canvas);
+  grid-template-columns: 272px minmax(0, 1fr);
+  background: var(--mist);
 }
+/* the sidebar: white, one hairline on its right, room to breathe */
 .app.biz .side {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 16px 12px 12px;
+  padding: 22px 14px 16px;
   background: var(--bg);
   border-right: 1px solid var(--line);
 }
+/* the brand sits on one line: the logo, Ordina, then Agent Checkout */
 .app.biz .side-top {
-  padding: 4px 8px 20px;
+  padding: 2px 8px 28px;
+  white-space: nowrap;
 }
 .app.biz .side-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 .app.biz .side-nav button {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   border: 0;
   border-radius: var(--r);
-  padding: 8px 10px;
+  padding: 9px 12px;
   background: transparent;
+  box-shadow: none;
   color: var(--ink-2);
+  font-family: var(--font);
   font-size: 14px;
   font-weight: 500;
+  line-height: 1.3;
   text-align: left;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.2s var(--ease-soft), color 0.2s var(--ease-soft);
 }
+/* soft icons: lighter stroke, quieter colour */
 .app.biz .side-nav button .ic {
-  color: var(--muted);
-  transition: color 0.15s;
+  width: 18px;
+  height: 18px;
+  color: var(--faint);
+  transition: color 0.2s var(--ease-soft);
+}
+.app.biz .side-nav button .ic path {
+  stroke-width: 1.6;
 }
 .app.biz .side-nav button:hover {
-  background: var(--hover);
+  background: var(--mist);
   color: var(--ink);
 }
-.app.biz .side-nav button.on {
+.app.biz .side-nav button:hover .ic {
+  color: var(--muted);
+}
+.app.biz .side-nav button.on,
+.app.biz .side-nav button.on:hover {
   background: var(--teal-50);
+  box-shadow: none;
   color: var(--teal-700);
-  font-weight: 600;
+  font-weight: 500;
 }
 .app.biz .side-nav button.on .ic {
   color: var(--teal-700);
 }
+/* something to finish in Settings: a small, still amber dot */
 .dot-warn {
   margin-left: auto;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--amber);
-  box-shadow: 0 0 0 3px var(--amber-soft);
 }
+/* who is signed in: the business's own square, its name, its email */
 .app.biz .side-foot {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 12px 2px 2px 6px;
+  gap: 10px;
+  margin: 0 -4px;
+  padding: 16px 2px 2px 6px;
   border-top: 1px solid var(--line);
 }
 .app.biz .side-foot .side-who {
@@ -202,17 +225,19 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  line-height: 1.3;
+  gap: 1px;
+  line-height: 1.35;
 }
 .app.biz .side-foot strong {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .app.biz .side-foot .side-who span {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -220,24 +245,30 @@
 }
 .app.biz .side-foot .icon-btn {
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   margin-left: 0;
-  color: var(--muted);
+  border-radius: var(--r);
+  color: var(--faint);
+  transition: background 0.2s var(--ease-soft), color 0.2s var(--ease-soft);
 }
 .app.biz .side-foot .icon-btn:hover {
-  background: var(--hover);
+  background: var(--mist);
   color: var(--ink);
 }
 .me.biz-me {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   flex: none;
   display: grid;
   place-items: center;
   border-radius: var(--r);
-  font-size: 13.5px;
-  font-weight: 600;
+  background: var(--teal-700);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
 }
 .app.biz .scrim {
   display: none;
@@ -247,11 +278,12 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--canvas);
+  background: var(--mist);
 }
+/* the top bar: white, a hairline below, the page's name, its status and its one action */
 .app.biz .top {
   flex: none;
-  height: 60px;
+  height: 64px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -264,10 +296,11 @@
   min-width: 0;
   margin: 0;
   font-family: var(--display);
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   line-height: 1.2;
+  color: var(--ink);
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -277,7 +310,16 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+.app.biz .top-actions .status-pill {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.app.biz .top-actions .status-pill.s-setup {
+  border-color: #f2dfb4;
+  background: var(--amber-soft);
+  color: var(--amber);
 }
 .app.biz .icon-btn.menu {
   display: none;
@@ -286,21 +328,33 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  background: var(--canvas);
+  background: var(--mist);
 }
+/* each page comes in softly: a 6px rise over half a second, once per page change */
 .app.biz .page-inner {
   max-width: none;
   margin: 0;
-  padding: 28px var(--gutter) 72px;
+  padding: 36px var(--gutter) 80px;
+  animation: biz-page-in 0.5s var(--ease) both;
+}
+@keyframes biz-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-/* ---------- cards ---------- */
+/* ---------- cards: white, no border, a soft shadow ---------- */
 .biz .card {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 18px 20px 20px;
+  padding: 22px 24px 24px;
   border: 0;
   border-radius: var(--r-card);
   background: var(--bg);
@@ -312,55 +366,61 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 30px;
-  margin-bottom: 12px;
+  min-height: 32px;
+  margin-bottom: 14px;
 }
 .biz .card h3,
 .set h3 {
   margin: 0;
   font-family: var(--display);
   font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--ink);
 }
 .empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 36px 20px 40px;
+  padding: 40px 20px 44px;
   text-align: center;
 }
 .empty .ic {
-  width: 36px;
-  height: 36px;
-  padding: 9px;
-  margin-bottom: 8px;
+  width: 40px;
+  height: 40px;
+  padding: 10px;
+  margin-bottom: 10px;
   border-radius: var(--r);
   background: var(--teal-50);
   color: var(--teal-700);
 }
+.empty .ic path {
+  stroke-width: 1.6;
+}
 .empty strong {
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
 }
 .empty p {
   max-width: 44ch;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--muted);
 }
 
 /* ---------- overview ---------- */
+/* setup not finished: amber, because that is what amber means here */
 .banner {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
-  padding: 11px 12px 11px 16px;
+  margin-bottom: 28px;
+  padding: 12px 14px 12px 16px;
   border-radius: var(--r);
   background: var(--amber-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 20%, transparent);
+  box-shadow: inset 0 0 0 1px #f2dfb4;
   font-size: 14px;
   color: var(--ink);
 }
@@ -373,56 +433,61 @@
   margin: 0;
 }
 .banner strong {
-  font-weight: 600;
+  font-weight: 500;
 }
 .app.biz .greet h2 {
   margin: 0;
   font-family: var(--display);
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
 }
 .greet p {
-  margin-top: 4px;
-  font-size: 14.5px;
+  margin-top: 6px;
+  font-size: 15px;
   color: var(--muted);
 }
 .stats {
-  margin-top: 22px;
+  margin-top: 28px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 .stat {
   min-width: 0;
-  min-height: 126px;
+  min-height: 136px;
   display: flex;
   flex-direction: column;
-  padding: 18px 20px 16px;
-  border-radius: var(--r);
+  padding: 20px 22px 18px;
+  border-radius: var(--r-card);
   background: var(--bg);
   box-shadow: var(--shadow-card);
 }
-.stat .eyebrow {
+.stat-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .stat strong {
-  margin-top: 12px;
+  margin-top: 14px;
   font-family: var(--display);
-  font-size: 32px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 .stat-hint {
   margin-top: auto;
-  padding-top: 8px;
-  font-size: 12.5px;
+  padding-top: 10px;
+  font-size: 13px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -430,13 +495,16 @@
 }
 .app.biz .fine {
   max-width: 100ch;
-  margin-top: 12px;
+  margin-top: 16px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 .two {
-  margin-top: 24px;
+  margin-top: 28px;
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 16px;
+  gap: 20px;
   align-items: start;
 }
 .mini-list {
@@ -445,21 +513,18 @@
 }
 .mini {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 84px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(150px, 1fr) 96px;
   align-items: center;
   gap: 16px;
-  padding: 11px 0;
+  padding: 14px 0;
   border-top: 1px solid var(--line);
 }
 .mini.mini-head {
-  padding: 0 0 8px;
+  padding: 0 0 10px;
   border-top: 0;
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 .mini.mini-head span:last-child {
   text-align: right;
@@ -471,57 +536,61 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 .mini-what strong {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .mini-what span {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 .mini-when {
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--ink-2);
   white-space: nowrap;
 }
 .mini-amt {
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 500;
   text-align: right;
   color: var(--ink);
 }
+/* the owner's link: on a mist ground, with Copy beside it (also used by the guided setup) */
 .linkbox {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 5px 5px 12px;
+  padding: 6px 6px 6px 14px;
   border-radius: var(--r);
-  background: var(--canvas);
+  background: var(--mist);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .linkbox code {
   flex: 1;
   min-width: 0;
-  font-family: var(--mono);
-  font-size: 12.5px;
+  font-family: var(--font);
+  font-size: 13.5px;
   color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .biz .card .linkbox + .muted-s {
-  margin-top: 12px;
+  margin-top: 14px;
+  line-height: 1.6;
 }
 .biz .card .field-hint {
   margin-top: 6px;
 }
 .biz .card .try {
   align-self: flex-start;
-  margin-top: 14px;
+  margin-top: 18px;
 }
 .biz .card .try .ic {
   width: 15px;
@@ -529,7 +598,7 @@
   color: var(--muted);
 }
 .biz .card.demo {
-  margin-top: 16px;
+  margin-top: 20px;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
@@ -543,17 +612,17 @@
   max-width: 80ch;
 }
 
-/* ---------- bookings: one card, rows on hairlines ---------- */
+/* ---------- bookings: soft tabs, then one card with rows on hairlines ---------- */
 .bk-bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px 20px;
-  margin-bottom: 16px;
+  gap: 12px 24px;
+  margin-bottom: 20px;
 }
 .bk-sub {
   flex: 1 1 320px;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--muted);
 }
 .tabs {
@@ -562,20 +631,21 @@
   gap: 2px;
   padding: 3px;
   border-radius: var(--r);
-  background: var(--hover);
+  background: #e9efef;
 }
 .tabs button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   border: 0;
-  border-radius: 4px;
-  padding: 6px 12px;
+  border-radius: calc(var(--r) - 2px);
+  padding: 7px 14px;
   background: transparent;
-  font-size: 13.5px;
+  font-family: var(--font);
+  font-size: 14px;
   font-weight: 500;
   color: var(--muted);
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.2s var(--ease-soft), background 0.2s var(--ease-soft), box-shadow 0.2s var(--ease-soft);
 }
 .tabs button:hover {
   color: var(--ink);
@@ -583,17 +653,23 @@
 .tabs button.on {
   background: var(--bg);
   color: var(--ink);
-  font-weight: 600;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--night) 14%, transparent);
+  box-shadow: 0 1px 2px rgba(31, 45, 58, 0.08), 0 1px 6px rgba(31, 45, 58, 0.05);
 }
 .tabs .count {
-  font-family: var(--mono);
-  font-size: 11.5px;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--r);
+  background: rgba(31, 45, 58, 0.06);
+  font-size: 12px;
   font-weight: 500;
+  line-height: 18px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
-  color: var(--faint);
+  color: var(--muted);
+  transition: background 0.2s var(--ease-soft), color 0.2s var(--ease-soft);
 }
 .tabs button.on .count {
+  background: var(--teal-50);
   color: var(--teal-700);
 }
 .biz .card.table {
@@ -605,21 +681,19 @@
 .brow-grid {
   display: grid;
   grid-template-columns:
-    minmax(200px, 2.6fr) minmax(130px, 1.8fr) minmax(78px, 0.7fr) minmax(62px, 0.6fr) minmax(82px, 0.7fr)
-    minmax(158px, 1.5fr) 148px;
-  column-gap: 12px;
-  padding: 0 20px;
+    minmax(200px, 2.6fr) minmax(140px, 1.8fr) minmax(80px, 0.7fr) minmax(70px, 0.6fr) minmax(86px, 0.7fr)
+    minmax(170px, 1.5fr) 152px;
+  column-gap: 16px;
+  padding: 0 24px;
 }
+/* column names: sentence case, muted, Inter 13px */
 .thead {
   align-items: center;
-  height: 38px;
+  height: 44px;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--canvas) 50%, var(--bg));
-  font-family: var(--mono);
-  font-size: 10.5px;
+  background: var(--bg);
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 .thead .r {
@@ -630,57 +704,63 @@
 }
 .brow-grid {
   align-items: start;
-  padding-top: 14px;
-  padding-bottom: 14px;
+  padding-top: 18px;
+  padding-bottom: 18px;
 }
 .brow {
-  transition: background 0.15s;
+  transition: background 0.2s var(--ease-soft);
 }
 @media (hover: hover) {
   .brow:hover {
-    background: color-mix(in srgb, var(--canvas) 45%, var(--bg));
+    background: #fafcfc;
   }
 }
 .brow.is-open,
 .brow.is-open:hover {
-  background: color-mix(in srgb, var(--teal-50) 45%, var(--bg));
+  background: color-mix(in srgb, var(--teal-50) 55%, var(--bg));
 }
 .c-book,
 .c-cust {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 .brow-top {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 8px;
+  gap: 4px 10px;
 }
 .brow-top strong {
   font-size: 14.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink);
 }
+/* "Appointment" / "Pickup": a quiet word, not a stamp */
 .brow-top .kind {
-  padding: 2px 6px;
-  font-size: 10px;
+  padding: 1px 7px;
+  border-color: var(--line);
+  background: var(--mist);
+  font-size: 12px;
+  color: var(--muted);
 }
 .brow-when {
-  margin-top: 4px;
-  font-size: 12.5px;
+  margin-top: 2px;
+  font-size: 13.5px;
   color: var(--ink-2);
 }
 .brow-ref {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--faint);
 }
 .c-cust strong {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 500;
+  color: var(--ink);
 }
 .c-cust span {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -692,19 +772,18 @@
   text-align: right;
 }
 .c-money .num {
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
   color: var(--ink-2);
 }
 .c-money.c-keep .num {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink);
 }
 .c-money small {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: -0.01em;
-  line-height: 1.35;
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 .c-status {
@@ -712,22 +791,26 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 5px;
+  gap: 6px;
+}
+.c-status .badge {
+  white-space: normal;
 }
 .brow-note {
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 12.5px;
+  line-height: 1.45;
   color: var(--muted);
 }
 .c-act {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
 .brow.is-past .brow-top strong,
 .brow.is-past .c-money.c-keep .num {
   color: var(--ink-2);
 }
+/* refund or cancel: a calm white panel inside the row */
 .brow-form {
   display: grid;
   grid-template-columns: minmax(0, 200px) auto minmax(0, 1fr);
@@ -736,12 +819,12 @@
     "input actions ."
     "hint hint hint";
   align-items: center;
-  gap: 6px 12px;
-  margin: 0 20px 16px;
-  padding: 14px 16px 12px;
+  gap: 8px 12px;
+  margin: 0 24px 18px;
+  padding: 16px 18px 14px;
   border-radius: var(--r);
   background: var(--bg);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: var(--shadow-card);
 }
 /* the label keeps its meaning; its three parts sit on the form's grid */
 .brow-form .field.inline {
@@ -752,6 +835,10 @@
 }
 .brow-form .money-in {
   grid-area: input;
+}
+.brow-form .money-in input {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 .brow-form .field-hint,
 .brow-form .field-err {
@@ -764,14 +851,14 @@
 }
 .field.has-err .money-in {
   border-color: var(--red);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 10%, transparent);
+  box-shadow: 0 0 0 4px rgba(196, 72, 60, 0.1);
 }
 .brow-msg {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: -4px 20px 14px;
-  font-size: 13px;
+  margin: -4px 24px 16px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--green);
 }
@@ -796,7 +883,7 @@
       "status status status"
       "act act act";
     gap: 12px;
-    padding: 16px;
+    padding: 18px;
   }
   .c-book {
     grid-area: book;
@@ -826,23 +913,20 @@
   .c-money {
     align-items: flex-start;
     text-align: left;
-    padding-top: 10px;
+    padding-top: 12px;
     border-top: 1px solid var(--line);
   }
   .c-money::before {
     content: attr(data-label);
-    font-family: var(--mono);
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--muted);
   }
   .brow-form {
-    margin: 0 16px 16px;
+    margin: 0 18px 18px;
   }
   .brow-msg {
-    margin: -4px 16px 14px;
+    margin: -4px 18px 16px;
   }
 }
 @container (max-width: 559px) {
@@ -866,7 +950,7 @@
       "book paid fee keep"
       "cust status status act";
     gap: 14px 16px;
-    padding: 16px 20px;
+    padding: 18px 24px;
   }
   .c-money {
     padding-top: 0;
@@ -876,22 +960,22 @@
     justify-content: flex-end;
   }
   .brow-form {
-    margin: 0 20px 16px;
+    margin: 0 24px 18px;
   }
 }
 
-/* ---------- settings ---------- */
+/* ---------- settings: calm cards, a title, one muted line, the form, Save on the right ---------- */
 .set-intro {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px 24px;
-  margin-bottom: 20px;
+  gap: 14px 24px;
+  margin-bottom: 24px;
 }
 .set-intro p {
   max-width: 70ch;
-  font-size: 14.5px;
+  font-size: 15px;
   color: var(--muted);
 }
 .checklist {
@@ -900,13 +984,15 @@
   gap: 8px;
 }
 .checklist a {
-  padding: 5px 9px 5px 6px;
+  padding: 5px 10px 5px 7px;
+  font-size: 13px;
   text-decoration: none;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.2s var(--ease-soft), background 0.2s var(--ease-soft);
 }
 .checklist a:hover {
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 10%, transparent);
 }
+/* a tick box (also used by the guided setup) */
 .tick {
   flex: none;
   width: 18px;
@@ -916,6 +1002,7 @@
   border: 1.5px solid var(--line-2);
   border-radius: 4px;
   background: var(--bg);
+  transition: background 0.2s var(--ease-soft), border-color 0.2s var(--ease-soft);
 }
 .done .tick {
   border-color: var(--green);
@@ -940,7 +1027,7 @@
 .set-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: 20px;
 }
 .set-col {
   display: contents;
@@ -972,64 +1059,84 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
   }
 }
 .set {
   min-width: 0;
-  scroll-margin-top: 16px;
+  scroll-margin-top: 20px;
 }
 .set-grid .set {
-  padding: 20px 22px;
+  padding: 24px 24px 22px;
   border-radius: var(--r-card);
   background: var(--bg);
   box-shadow: var(--shadow-card);
   container-type: inline-size;
 }
 .set-head {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 .set-head p {
   max-width: 68ch;
-  margin-top: 4px;
-  font-size: 13.5px;
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--muted);
 }
 .set-head .set-need {
-  margin-top: 8px;
+  margin-top: 10px;
   font-weight: 500;
   color: var(--amber);
 }
 .set form > .field:last-of-type {
   margin-bottom: 0;
 }
+.biz .set .field {
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.biz .set .field-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.biz .set .field input,
+.biz .set .field select,
+.biz .set .field textarea,
+.biz .set textarea {
+  padding: 10px 12px;
+  font-size: 14.5px;
+}
+.biz .set .field .money-in input {
+  padding-left: 6px;
+}
 .savebar {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 14px;
+  margin-top: 20px;
 }
 .set-grid .savebar {
-  margin: 18px -22px -20px;
-  padding: 12px 22px;
+  margin: 22px -24px -22px;
+  padding: 14px 24px;
   border-top: 1px solid var(--line);
 }
 .saved {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--green);
-  animation: fade 0.2s both;
+  animation: fade 0.4s var(--ease-soft) both;
 }
 .saved .ic {
   width: 15px;
   height: 15px;
 }
 .item-row {
-  padding: 14px 0 16px;
+  padding: 18px 0 18px;
   border-top: 1px solid var(--line);
 }
 .item-row:first-child {
@@ -1041,7 +1148,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 .item-fields {
   display: grid;
@@ -1049,6 +1156,7 @@
   gap: 12px;
   align-items: start;
 }
+.biz .set .item-fields .field,
 .item-fields .field {
   margin: 0;
 }
@@ -1068,12 +1176,15 @@
     grid-column: 1 / -1;
   }
 }
+/* remove a row (also used by the guided setup) */
 .icon-btn.rm {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   margin: 0;
+  border-radius: var(--r);
   color: var(--faint);
+  transition: background 0.2s var(--ease-soft), color 0.2s var(--ease-soft);
 }
 .icon-btn.rm:hover {
   background: var(--red-soft);
@@ -1083,6 +1194,7 @@
   width: 16px;
   height: 16px;
 }
+/* add another row (also used by the guided setup) */
 .add {
   display: inline-flex;
   align-items: center;
@@ -1091,6 +1203,7 @@
 .add .ic {
   width: 16px;
   height: 16px;
+  color: var(--teal-700);
 }
 
 /* opening hours (also used by the guided setup) */
@@ -1103,8 +1216,8 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 46px;
-  padding: 5px 0;
+  min-height: 50px;
+  padding: 6px 0;
 }
 .hour-row + .hour-row {
   border-top: 1px solid var(--line);
@@ -1133,7 +1246,7 @@
   border-radius: var(--r);
   background: var(--line-2);
   cursor: pointer;
-  transition: background 0.16s;
+  transition: background 0.2s var(--ease-soft);
 }
 .switch input::after {
   content: "";
@@ -1144,8 +1257,8 @@
   height: 14px;
   border-radius: 4px;
   background: var(--bg);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--night) 28%, transparent);
-  transition: transform 0.16s var(--ease);
+  box-shadow: 0 1px 2px rgba(31, 45, 58, 0.22);
+  transition: transform 0.25s var(--ease);
 }
 .switch input:checked {
   background: var(--teal-700);
@@ -1154,7 +1267,7 @@
   transform: translateX(14px);
 }
 .switch input:focus-visible {
-  outline: 2px solid var(--teal-700);
+  outline: 2px solid var(--teal-400);
   outline-offset: 2px;
 }
 .hour-times {
@@ -1162,27 +1275,27 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 .hour-times input {
-  padding: 6px 8px;
+  padding: 7px 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--r);
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--mono);
-  font-size: 13px;
+  font-family: var(--font);
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.2s var(--ease-soft), box-shadow 0.2s var(--ease-soft);
 }
 .hour-times input:focus {
   outline: none;
-  border-color: var(--teal-700);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal-700) 14%, transparent);
+  border-color: var(--teal-400);
+  box-shadow: 0 0 0 4px rgba(46, 191, 174, 0.16);
 }
 .closed {
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--faint);
 }
 
@@ -1190,24 +1303,24 @@
 .pp-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
+  gap: 14px;
+  padding: 16px;
   border-radius: var(--r);
-  background: var(--canvas);
+  background: var(--mist);
 }
 .pp-row div {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 .pp-row strong {
   font-size: 14.5px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .pp-row span {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -1231,6 +1344,7 @@
   color: var(--bg);
   font-family: var(--display);
   font-style: italic;
+  font-weight: 600;
   font-size: 18px;
 }
 /* the row styles its spans as small muted text; the mark keeps its own colour and size */
@@ -1249,7 +1363,8 @@
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
-  transition: filter 0.16s;
+  cursor: pointer;
+  transition: filter 0.2s var(--ease-soft);
 }
 .pp-connect:hover:not(:disabled) {
   filter: brightness(0.96);
@@ -1259,8 +1374,8 @@
   cursor: default;
 }
 .pp-note {
-  margin-bottom: 10px;
-  font-size: 13px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 .pp-row + .field-err {
@@ -1272,57 +1387,64 @@
   min-height: 100%;
   display: flex;
   justify-content: center;
-  padding: 48px var(--gutter);
-  background: var(--canvas);
+  padding: 56px var(--gutter);
+  background: var(--mist);
 }
 .auth-card {
   width: 100%;
-  max-width: 440px;
+  max-width: 460px;
   margin: auto;
-  padding: 28px;
+  padding: 36px 32px 28px;
   border-radius: var(--r-card);
   background: var(--bg);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+  animation: biz-page-in 0.5s var(--ease) both;
 }
 .auth-card h1 {
-  margin-top: 22px;
+  margin-top: 26px;
   font-family: var(--display);
   font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 .auth-sub {
-  margin: 8px 0 22px;
+  max-width: 46ch;
+  margin: 10px auto 26px;
   font-size: 14.5px;
+  line-height: 1.6;
   color: var(--muted);
 }
 .auth-switch {
-  margin-top: 16px;
+  margin-top: 18px;
   font-size: 13.5px;
   color: var(--muted);
   text-align: center;
 }
+/* the simulated businesses (also offered by the guided setup's welcome) */
 .demo-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  text-align: left;
 }
 .demo-biz {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 12px;
-  border: 1px solid var(--line-2);
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--bg);
+  box-shadow: 0 1px 2px rgba(31, 45, 58, 0.04);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.2s var(--ease-soft), background 0.2s var(--ease-soft), box-shadow 0.2s var(--ease-soft);
 }
 .demo-biz:hover:not(:disabled) {
-  border-color: var(--teal-700);
+  border-color: var(--teal-100);
   background: var(--teal-50);
 }
 .demo-biz:disabled {
@@ -1338,16 +1460,16 @@
 }
 .demo-biz-text strong {
   font-size: 14.5px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .demo-biz-text span {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 .demo-biz svg {
   flex: none;
   color: var(--faint);
-  transition: color 0.15s, transform 0.15s var(--ease);
+  transition: color 0.2s var(--ease-soft), transform 0.2s var(--ease);
 }
 .demo-biz:hover:not(:disabled) svg {
   color: var(--teal-700);
@@ -1382,7 +1504,7 @@
   }
   .app.biz.drawer-open .side {
     transform: none;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 0 48px rgba(31, 45, 58, 0.14);
   }
   .app.biz .scrim {
     display: block;
@@ -1390,7 +1512,7 @@
     inset: 0;
     z-index: 20;
     border: 0;
-    background: color-mix(in srgb, var(--night) 40%, transparent);
+    background: rgba(31, 45, 58, 0.24);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
@@ -1404,9 +1526,9 @@
     flex: none;
   }
   .app.biz .top {
-    height: 56px;
+    height: 58px;
     gap: 6px;
-    padding: 0 12px 0 6px;
+    padding: 0 16px 0 8px;
   }
   .app.biz .top-title {
     font-size: 19px;
@@ -1420,22 +1542,30 @@
     font-size: 13px;
   }
   .app.biz .page-inner {
-    padding: 20px var(--gutter) 56px;
+    padding: 24px var(--gutter) 64px;
   }
   .app.biz .greet h2 {
-    font-size: 24px;
+    font-size: 26px;
   }
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+    margin-top: 22px;
   }
   .stat {
-    min-height: 112px;
-    padding: 14px 14px 12px;
+    min-height: 116px;
+    padding: 16px 16px 14px;
   }
   .stat strong {
     margin-top: 10px;
-    font-size: 26px;
+    font-size: 25px;
+  }
+  .biz .card {
+    padding: 20px 18px 20px;
+  }
+  .two {
+    margin-top: 22px;
+    gap: 16px;
   }
   .stat-hint {
     white-space: normal;
@@ -1497,7 +1627,8 @@
   .bk-bar .tabs button {
     flex: 1;
     justify-content: center;
-    padding: 7px 8px;
+    padding: 8px 6px;
+    font-size: 13.5px;
   }
   .switch {
     width: 124px;
@@ -1534,16 +1665,16 @@
     flex: 1 1 100%;
   }
   .set-grid .set {
-    padding: 18px 16px;
+    padding: 20px 18px 18px;
   }
   .set-grid .savebar {
-    margin: 18px -16px -18px;
-    padding: 12px 16px;
+    margin: 20px -18px -18px;
+    padding: 12px 18px;
   }
   .auth {
     padding: 24px var(--gutter);
   }
   .auth-card {
-    padding: 22px 20px;
+    padding: 28px 20px 22px;
   }
 }

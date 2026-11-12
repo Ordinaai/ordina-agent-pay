@@ -455,7 +455,7 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
 function Stat({ label, value, hint }: { label: string; value: string | null | undefined; hint?: string }) {
   return (
     <div className="stat">
-      <span className="eyebrow">{label}</span>
+      <span className="stat-label">{label}</span>
       <strong>
         <CountUp value={value} />
       </strong>
