@@ -11,7 +11,7 @@ AI assistants can already find a hair salon or a physio. They can't safely book 
 
 Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. Ordina runs AI Secretaries for businesses; this is how other people's agents will book and pay them.
 
-> **Live demo:** https://ordina-agent-checkout.onrender.com (PayPal Sandbox: pay by card with PayPal's test Visa 4012 8888 8888 1881, any future date, any CVV) · **Video:** https://youtu.be/8YnamsRuMpk
+> **Live demo:** https://ordina-agent-checkout.onrender.com (PayPal Sandbox: pay by card with PayPal's test Visa 4012 8888 8888 1881, any future date, any CVV) · **Video:** https://youtu.be/GQbrm0iuq0c
 
 ![Ordina Agent Checkout: ask your agent, it agrees the booking with the business, you approve one PayPal payment](docs/screenshot.jpg)
 
