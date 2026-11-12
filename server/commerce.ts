@@ -109,15 +109,25 @@ export async function startPayment(holdId: string, sessionId: string): Promise<P
     title: "Create PayPal order",
     detail: `${s.name}, ${hold.date} ${hold.time}: ${b.currency} ${s.price}, paid to ${b.name}`,
   });
-  const order = await paypal.createOrder({
-    amount: s.price,
-    currency: b.currency,
-    description: `${s.name} at ${b.name}, ${hold.date} ${hold.time}`,
-    referenceId: hold.id,
-    brandName: b.name,
-    payeeMerchantId: b.paypal.merchantId!,
-    platformFee: fromCents(platformFeeCents(s.price)),
-  });
+  let order: paypal.CreatedOrder;
+  try {
+    order = await paypal.createOrder({
+      amount: s.price,
+      currency: b.currency,
+      description: `${s.name} at ${b.name}, ${hold.date} ${hold.time}`,
+      referenceId: hold.id,
+      brandName: b.name,
+      payeeMerchantId: b.paypal.merchantId!,
+      platformFee: fromCents(platformFeeCents(s.price)),
+    });
+  } catch (err) {
+    // PayPal unreachable or refusing: the agents hear it as a tool result and tell the customer,
+    // instead of the whole turn failing. The hold stays, so asking again retries the same order
+    // (same PayPal-Request-Id, so it is never created twice).
+    const reason = err instanceof paypal.PayPalError ? err.issue : "PAYPAL_UNREACHABLE";
+    emit({ sessionId, businessId: b.id, kind: "paypal", actor: "paypal", title: `Order not created: ${reason}` });
+    return { error: `PayPal could not create the payment just now (${reason}). Nothing was charged; the time is still held. Try again in a moment.` };
+  }
   hold.orderId = order.id;
   emit({ sessionId, businessId: b.id, kind: "paypal", actor: "paypal", title: `Order ${order.status}`, detail: order.id, data: { orderId: order.id } });
   return offer(order.id);
