@@ -1,22 +1,20 @@
 services:
   - type: web
-    name: ordina-agent-pay
+    name: ordina-agent-checkout
     runtime: node
-    plan: starter # paid: needed for the persistent disk
+    # Free plan. The server pings its own address every 10 minutes (server/keep-awake.ts), so it
+    # does not sleep. Free has no disk: the database lives on the instance and starts again (with
+    # the demo businesses) when Render restarts the service. One always-on service is ~720 of the
+    # workspace's 750 free hours a month.
+    plan: free
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
-    disk:
-      name: data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "24"
       - key: NODE_ENV
         value: production
-      - key: DATA_DIR
-        value: /var/data
       - key: PAYPAL_ENV
         value: sandbox
       - key: PLATFORM_FEE_PERCENT

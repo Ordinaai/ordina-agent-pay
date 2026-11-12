@@ -34,7 +34,7 @@ Without Claude: `node node_modules/tsx/dist/cli.mjs scripts/mcp-probe.mts` acts 
 
 ## Safety is in the code, not the prompt
 
-An agent that can spend money needs rules it cannot talk its way around. All of these are enforced by the server, whatever a model says, and each has a test (46 tests in `test/`):
+An agent that can spend money needs rules it cannot talk its way around. All of these are enforced by the server, whatever a model says, and each has a test (48 tests in `test/`):
 
 | # | Rule | Where |
 |---|---|---|
@@ -97,7 +97,7 @@ With no keys it runs fully offline: scripted agents drive the same tools and Pay
 
 Data is SQLite (Node's built-in `node:sqlite`, Node 24), in `./data` or `DATA_DIR`. Tests: `npm test`.
 
-**Deploy:** [render.yaml](render.yaml) is a Render blueprint (a starter instance with a 1 GB disk for the database). Set the secrets in Render, and `PUBLIC_URL` to the public address so MCP pay links point at it.
+**Deploy:** [render.yaml](render.yaml) is a Render blueprint on the free plan. Set the secrets in Render, and `PUBLIC_URL` to the public address so MCP pay links point at it. Render's free plan sleeps after 15 idle minutes, so the server asks its own public health check every 10 minutes and never goes idle (`server/keep-awake.ts`; `KEEP_AWAKE=0` turns it off). The free plan has no disk: the database starts again, with the demo businesses, whenever Render restarts the service. For bookings that survive restarts, use a paid instance with a disk and set `DATA_DIR` to it.
 
 ## Licence
 

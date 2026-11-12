@@ -10,6 +10,7 @@ import { eventsFor, subscribe, type WireEvent } from "./events.ts";
 import { allowTurn, validSession } from "./guard.ts";
 import { mockApprove, paymentsMisconfigured, paypalClientId, paypalFlow, paypalMode, paypalSandboxBuyerCountry } from "./paypal.ts";
 import { startReleaseClock } from "./payouts.ts";
+import { startKeepAwake } from "./keep-awake.ts";
 import { connectApi, mockPayPalPages } from "./paypal-connect.ts";
 import { mcpRouter } from "./mcp.ts";
 import { seedDemoBusinesses } from "./seed.ts";
@@ -273,7 +274,10 @@ if (existsSync(dist)) {
   app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
-if (process.env.NODE_ENV !== "test") startReleaseClock();
+if (process.env.NODE_ENV !== "test") {
+  startReleaseClock();
+  startKeepAwake(); // Render free plan: never idle long enough to sleep
+}
 const setupProblem = paymentsMisconfigured();
 if (setupProblem) console.error(`PayPal payments are OFF: ${setupProblem} Set it to the Sandbox business account's Merchant ID.`);
 
