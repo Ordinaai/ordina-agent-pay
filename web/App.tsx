@@ -18,6 +18,10 @@ type Config = {
   ai: "claude" | "mock";
   paypal: "sandbox" | "live" | "mock";
   paypalClientId: string | null;
+  /** Sandbox only: the buyer country PayPal's buttons assume (so the card button can be tried anywhere). */
+  paypalBuyerCountry?: string | null;
+  /** standard: the business is paid at capture; multiparty: PayPal holds it until after the booking. */
+  paypalFlow?: "standard" | "multiparty";
   businesses: Array<{ id: string; name: string; city: string; timezone: string }>;
 };
 type Approval = {
@@ -612,9 +616,18 @@ function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chat
       {!paid && !expired && (
         <div className="pay-action">
           {config?.paypal !== "mock" && config?.paypalClientId ? (
-            <PayPalScriptProvider options={{ clientId: config.paypalClientId, currency: a.currency, intent: "capture" }}>
+            <PayPalScriptProvider
+              options={{
+                clientId: config.paypalClientId,
+                currency: a.currency,
+                intent: "capture",
+                ...(config.paypalBuyerCountry ? { buyerCountry: config.paypalBuyerCountry } : {}),
+              }}
+            >
+              {/* Vertical: the horizontal layout never shows PayPal's "Debit or Credit Card" button,
+                  which is how a customer without a PayPal account pays. */}
               <PayPalButtons
-                style={{ layout: "horizontal", tagline: false, height: 44, shape: "pill", color: "gold" }}
+                style={{ layout: "vertical", tagline: false, height: 44, shape: "pill", color: "gold" }}
                 disabled={working}
                 createOrder={async () => a.orderId}
                 onApprove={async () => capture()}
@@ -637,7 +650,9 @@ function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chat
       )}
       <p className="pay-fine">
         {paid
-          ? `Payment confirmed by PayPal. ${a.businessName} receives it after your booking.`
+          ? config?.paypalFlow === "multiparty"
+            ? `Payment confirmed by PayPal. ${a.businessName} receives it after your booking.`
+            : `Payment confirmed by PayPal and paid to ${a.businessName}.`
           : expired
             ? "Nothing was charged. Ask me to hold it again."
             : `Paid to ${a.businessName} through PayPal, with PayPal's buyer protection. ${a.policy}`}

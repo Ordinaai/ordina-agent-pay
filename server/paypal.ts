@@ -46,6 +46,14 @@ const BN_CODE = process.env.PAYPAL_BN_CODE ?? "";
 export const paypalMode = (): "sandbox" | "live" | "mock" =>
   MODE === "mock" ? "mock" : process.env.PAYPAL_ENV === "live" ? "live" : "sandbox";
 export const paypalClientId = (): string | null => process.env.PAYPAL_CLIENT_ID ?? null;
+/**
+ * Sandbox only: the buyer country PayPal's buttons assume, so the "Debit or Credit Card"
+ * (no PayPal account) button can be tried from anywhere. PayPal picks the buttons from where
+ * the buyer is, and some countries (Nigeria among them) get no guest card checkout. Live
+ * always uses the buyer's real country: this returns null there.
+ */
+export const paypalSandboxBuyerCountry = (): string | null =>
+  paypalMode() === "sandbox" ? (process.env.PAYPAL_SANDBOX_BUYER_COUNTRY || "US").toUpperCase().slice(0, 2) : null;
 
 /**
  * Which PayPal product moves the money.
@@ -263,11 +271,11 @@ export async function createOrder(input: {
             : {}),
         },
       ],
-      payment_source: {
-        paypal: {
-          experience_context: { brand_name: input.brandName.slice(0, 127), shipping_preference: "NO_SHIPPING", user_action: "PAY_NOW" },
-        },
-      },
+      // No payment_source: an order made for the PayPal wallet cannot be paid with PayPal's
+      // "Debit or Credit Card" button, and a customer without a PayPal account pays that way
+      // (guest checkout, where PayPal offers it). application_context carries the same settings
+      // for whichever button the customer uses.
+      application_context: { brand_name: input.brandName.slice(0, 127), shipping_preference: "NO_SHIPPING", user_action: "PAY_NOW" },
     },
   });
   return { id: order.id, status: order.status, approveUrl: order.links?.find((l) => l.rel === "payer-action" || l.rel === "approve")?.href };

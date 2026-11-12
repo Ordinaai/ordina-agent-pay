@@ -86,9 +86,12 @@ With no keys it runs fully offline: scripted agents drive the same tools and Pay
 
 **With PayPal Sandbox:**
 
-1. At [developer.paypal.com](https://developer.paypal.com), Apps & Credentials, Sandbox: create an app (type Merchant). Copy its **Client ID** and **Secret** into `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`.
-2. Under Sandbox accounts, open the **business** account the app belongs to and copy its **Merchant ID** (Account ID) into `PAYPAL_SELLER_MERCHANT_ID`. Without it the server refuses to create payments, because rule 4 could not check the payee.
-3. Pay with the Sandbox **personal** account from the same page.
+1. At [developer.paypal.com](https://developer.paypal.com), Sandbox accounts: make sure the **business** account is in a country that can take card payments (United States works). PayPal creates the default accounts in your own country, and a business account from a country PayPal only lets send money (Nigeria, for one) cannot be paid, by card or by PayPal.
+2. Apps & Credentials, Sandbox: create an app (type Merchant) on that business account. Copy its **Client ID** and **Secret** into `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`.
+3. Copy the business account's **Merchant ID** (Account ID) into `PAYPAL_SELLER_MERCHANT_ID`. Without it the server refuses to create payments, because rule 4 could not check the payee.
+4. Pay either way: **PayPal** (sign in with a Sandbox personal account), or **Debit or Credit Card** with no PayPal account, using a test card from PayPal's [card testing page](https://developer.paypal.com/tools/sandbox/card-testing/) (for example Visa 4012 8888 8888 1881, any future date, any CVV).
+
+**No PayPal account needed.** Customers can pay by card through PayPal's own form (guest checkout) wherever PayPal offers it; PayPal decides which buttons to show from where the buyer is. In the Sandbox the buttons assume a US buyer (`PAYPAL_SANDBOX_BUYER_COUNTRY`, default `US`), so the card button can be tried from any country; live always uses the buyer's real location.
 
 **With Claude:** set `ANTHROPIC_API_KEY`. Agent turns are limited per IP per hour and per day (`TURNS_PER_IP_PER_HOUR`, `DAILY_TURN_CAP`), for the chat and MCP alike.
 

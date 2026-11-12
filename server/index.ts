@@ -8,7 +8,7 @@ import { bizApi } from "./business-api.ts";
 import { cancelDeadline, captureAndConfirm, customerCancel, offerByPayToken, session, setBudget } from "./commerce.ts";
 import { eventsFor, subscribe, type WireEvent } from "./events.ts";
 import { allowTurn, validSession } from "./guard.ts";
-import { mockApprove, paymentsMisconfigured, paypalClientId, paypalMode } from "./paypal.ts";
+import { mockApprove, paymentsMisconfigured, paypalClientId, paypalFlow, paypalMode, paypalSandboxBuyerCountry } from "./paypal.ts";
 import { startReleaseClock } from "./payouts.ts";
 import { connectApi, mockPayPalPages } from "./paypal-connect.ts";
 import { mcpRouter } from "./mcp.ts";
@@ -34,6 +34,8 @@ app.get("/api/config", (_req, res) => {
     model: aiMode() === "claude" ? MODEL : null,
     paypal: paypalMode(),
     paypalClientId: paypalMode() === "mock" ? null : paypalClientId(),
+    paypalBuyerCountry: paypalSandboxBuyerCountry(),
+    paypalFlow: paypalFlow(),
     businesses: bookableBusinesses().map((b) => ({ id: b.id, handle: b.handle, name: b.name, city: b.city, timezone: b.timezone })),
   });
 });
@@ -165,7 +167,12 @@ app.get("/api/offers/:token", (req, res) => {
     res.status(404).json({ error: "This payment link is not valid or has expired." });
     return;
   }
-  res.json({ offer: o.view, paypal: paypalMode(), paypalClientId: paypalMode() === "mock" ? null : paypalClientId() });
+  res.json({
+    offer: o.view,
+    paypal: paypalMode(),
+    paypalClientId: paypalMode() === "mock" ? null : paypalClientId(),
+    paypalBuyerCountry: paypalSandboxBuyerCountry(),
+  });
 });
 
 app.post("/api/offers/:token/mock-approve", (req, res) => {

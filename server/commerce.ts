@@ -262,7 +262,7 @@ async function captureOnce(sessionId: string, orderId: string): Promise<CaptureO
     kind: "paypal",
     actor: "paypal",
     title: `Capture ${cap.captureStatus ?? cap.status}`,
-    detail: `${cap.currency ?? ""} ${cap.amount ?? ""} to ${b.name}, held by PayPal`.trim(),
+    detail: `${cap.currency ?? ""} ${cap.amount ?? ""} to ${b.name}${cap.disbursement === "HELD" ? ", held by PayPal until release" : ", paid to its PayPal"}`.trim(),
   });
 
   // Rule 4: positive confirmation, for the exact price, to this business.

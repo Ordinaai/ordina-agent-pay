@@ -991,7 +991,11 @@ function PaySection({ me, onSaved, notice }: { me: Biz; onSaved: (b: Biz) => voi
     <Section
       id="paypal"
       title="Getting paid"
-      sub="Customers pay straight into your own PayPal account. PayPal holds each payment until 24 hours after the booking or pickup, then releases it to you, so a refund is always possible before then. You pay PayPal's usual fee; Ordina takes no cut."
+      sub={
+        FLOW === "standard"
+          ? "Customers pay straight into your own PayPal account the moment they approve. You can refund for 180 days. You pay PayPal's usual fee; Ordina takes no cut."
+          : "Customers pay straight into your own PayPal account. PayPal holds each payment until 24 hours after the booking or pickup, then releases it to you, so a refund is always possible before then. You pay PayPal's usual fee; Ordina takes no cut."
+      }
       need={me.setupErrors.paypal}
     >
       {notice === "cancelled" && !connected && <p className="pp-note">You left PayPal before connecting. Nothing changed.</p>}

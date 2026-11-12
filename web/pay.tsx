@@ -28,7 +28,11 @@ const cityOf = (tz: string) => tz.split("/")[1]?.replace("_", " ") ?? tz;
 
 export function PayPage({ token }: { token: string }) {
   const [offer, setOffer] = useState<Offer | null>(null);
-  const [paypal, setPaypal] = useState<{ mode: string; clientId: string | null }>({ mode: "mock", clientId: null });
+  const [paypal, setPaypal] = useState<{ mode: string; clientId: string | null; buyerCountry: string | null }>({
+    mode: "mock",
+    clientId: null,
+    buyerCountry: null,
+  });
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -39,7 +43,7 @@ export function PayPage({ token }: { token: string }) {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "This payment link is not valid.");
         setOffer(j.offer);
-        setPaypal({ mode: j.paypal, clientId: j.paypalClientId });
+        setPaypal({ mode: j.paypal, clientId: j.paypalClientId, buyerCountry: j.paypalBuyerCountry ?? null });
       })
       .catch((e) => setError(e.message));
   }, [token]);
@@ -125,7 +129,14 @@ export function PayPage({ token }: { token: string }) {
               <>
                 <div className="paypage-pay">
                   {paypal.mode !== "mock" && paypal.clientId ? (
-                    <PayPalScriptProvider options={{ clientId: paypal.clientId, currency: offer.currency, intent: "capture" }}>
+                    <PayPalScriptProvider
+                      options={{
+                        clientId: paypal.clientId,
+                        currency: offer.currency,
+                        intent: "capture",
+                        ...(paypal.buyerCountry ? { buyerCountry: paypal.buyerCountry } : {}),
+                      }}
+                    >
                       <PayPalButtons
                         style={{ layout: "vertical", tagline: false, height: 46, shape: "pill", color: "gold" }}
                         disabled={working}
