@@ -4,7 +4,9 @@ import express, { type Request, type Response } from "express";
 import { allowAuthTry, checkPassword, endSession, hashPassword, ownerOf, startSession } from "./auth.ts";
 import { CITIES } from "./cities.ts";
 import { businessCancel, businessGetsCents, businessRefund, canRefund, refundableCents } from "./commerce.ts";
-import { paypalFlow, paypalMode } from "./paypal.ts";
+import { allowTurn } from "./guard.ts";
+import { buildImport, extractFromPage, ImportError, parseUserUrl, safeFetchPage } from "./import.ts";
+import { paypalFlow, paypalMode, sellerMerchantId } from "./paypal.ts";
 import { runReleases } from "./payouts.ts";
 import { bookableBusinesses } from "./providers/index.ts";
 import {
@@ -30,7 +32,15 @@ export const bizApi = express.Router();
  * BUSINESS_SIGNUP=1 to open sign-up, sign-in and editing (self-serve businesses).
  */
 export const signupOpen = () => process.env.BUSINESS_SIGNUP === "1";
-const SELF_SERVE = new Set(["POST /signup", "POST /login", "PUT /profile", "PUT /items", "POST /status"]);
+const SELF_SERVE = new Set([
+  "POST /signup",
+  "POST /login",
+  "PUT /profile",
+  "PUT /items",
+  "POST /status",
+  "POST /import",
+  "POST /payments/demo-seller",
+]);
 bizApi.use((req, res, next) => {
   if (!signupOpen() && SELF_SERVE.has(`${req.method} ${req.path}`)) {
     res.status(403).json({ error: "This demo shows simulated businesses only." });
@@ -95,7 +105,7 @@ bizApi.post("/signup", async (req, res) => {
   const { name, category, city, email, password } = req.body ?? {};
   const fields: Record<string, string> = {};
   if (typeof name !== "string" || name.trim().length < 2) fields.name = "Enter your business name.";
-  if (typeof category !== "string" || !category.trim()) fields.category = "Say what kind of business it is.";
+  if (category !== undefined && category !== null && typeof category !== "string") fields.category = "Say what kind of business it is.";
   if (typeof city !== "string" || !CITIES[city]) fields.city = "Choose your city.";
   if (typeof email !== "string" || !EMAIL.test(email.trim())) fields.email = "Enter a valid email address.";
   if (typeof password !== "string" || password.length < 8) fields.password = "Use at least 8 characters.";
@@ -106,7 +116,7 @@ bizApi.post("/signup", async (req, res) => {
   }
   const b = createBusiness({
     name: name.trim().slice(0, 80),
-    category: category.trim().slice(0, 60),
+    category: typeof category === "string" ? category.trim().slice(0, 60) : "",
     city,
     timezone: CITIES[city],
     ownerEmail: email,
@@ -257,6 +267,64 @@ bizApi.put("/items", (req, res) => {
   const updated = getBusiness(b.id)!;
   if (updated.status === "live" && Object.keys(setupErrors(updated)).length) updateBusiness(b.id, { status: "setup" });
   res.json({ business: ownerView(getBusiness(b.id)!) });
+});
+
+// ---------- import: read the owner's own page and suggest what they sell ----------
+const IMPORT_MODEL_ERROR = "We could not read that page just now. Add what you sell yourself, or try again.";
+
+/** Reads a page and returns a draft for the owner to review. Saves nothing: the owner saves through PUT /items and PUT /profile. */
+bizApi.post("/import", async (req, res) => {
+  const b = need(req, res);
+  if (!b) return;
+  const raw = req.body?.url;
+  if (typeof raw !== "string" || !raw.trim()) {
+    res.status(400).json({ fields: { url: "Paste the address of your website or booking page." } });
+    return;
+  }
+  let url: URL;
+  try {
+    url = parseUserUrl(raw);
+  } catch (err) {
+    res.status(422).json({ error: err instanceof ImportError ? err.message : "That does not look like a web address." });
+    return;
+  }
+  const turn = allowTurn(ip(req));
+  if (!turn.ok) {
+    res.status(429).json({ error: turn.reason });
+    return;
+  }
+  let page: Awaited<ReturnType<typeof safeFetchPage>>;
+  try {
+    page = await safeFetchPage(url.href);
+  } catch (err) {
+    res.status(422).json({ error: err instanceof ImportError ? err.message : "We could not open that page." });
+    return;
+  }
+  try {
+    const findings = await extractFromPage(page);
+    res.json({ import: buildImport(findings, page) });
+  } catch (err) {
+    console.error("import: reading the page failed:", err instanceof Error ? err.message : err);
+    res.status(502).json({ error: IMPORT_MODEL_ERROR });
+  }
+});
+
+/** Sandbox only: pay this business through the demo Sandbox seller, the way the demo businesses are paid (server/seed.ts). */
+bizApi.post("/payments/demo-seller", (req, res) => {
+  const b = need(req, res);
+  if (!b) return;
+  if (paypalFlow() !== "standard" || paypalMode() === "live") {
+    res.status(403).json({ error: "The demo seller is only for the PayPal Sandbox." });
+    return;
+  }
+  const updated = updateBusiness(b.id, {
+    paypalMerchantId: sellerMerchantId(),
+    paypalEmail: process.env.DEMO_SELLER_EMAIL || "demo-seller@example.com",
+    paypalReceivable: true,
+    paypalEmailConfirmed: true,
+    paypalCheckedAt: Date.now(),
+  });
+  res.json({ business: ownerView(updated) });
 });
 
 bizApi.post("/status", (req, res) => {

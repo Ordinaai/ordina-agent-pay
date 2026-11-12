@@ -1,8 +1,9 @@
 // The hosted pay page (/pay/<token>). Any AI assistant (Claude through MCP, or
 // our own playground) sends the customer here to approve one offer in PayPal.
+// A night stage, and on it the pass: the same object the chat and the front door show.
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { useCallback, useEffect, useState } from "react";
-import { Icon, Mark } from "./ui.tsx";
+import { HoldClock, Mark, Pass, Seal } from "./ui.tsx";
 
 type Offer = {
   orderId: string;
@@ -76,58 +77,68 @@ export function PayPage({ token }: { token: string }) {
   const left = offer ? Math.max(0, offer.expiresAt - now) : 0;
   const booked = offer?.state === "booked";
   const expired = offer && !booked && (left === 0 || offer.state === "expired");
+  const clock = `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, "0")}`;
 
   return (
-    <div className="paypage">
-      <div className="paypage-card">
+    <div className="stage on-night">
+      <header className="stage-top">
         <span className="brand">
-          <Mark /> Ordina <em className="for">Agent Checkout</em>
+          <Mark light /> Ordina <em className="for">Agent Checkout</em>
         </span>
-        {!offer && !error && <p className="muted">Loading</p>}
+        {offer && paypal.mode !== "live" && (
+          <span className="badge" title="Test mode: no real money moves">
+            {paypal.mode === "mock" ? "Test mode" : "PayPal Sandbox"}
+          </span>
+        )}
+      </header>
+      <main className="stage-main">
+        {!offer && !error && (
+          <p className="stage-wait">
+            <span className="spin" aria-hidden /> Loading
+          </p>
+        )}
         {!offer && error && (
-          <div className="paypage-msg">
+          <div className="stage-msg">
+            <span className="eyebrow">Payment link</span>
             <h1>Link not found</h1>
             <p>{error}</p>
+            <p>Ask your agent for a new link.</p>
           </div>
         )}
         {offer && (
           <>
-            <p className="paypage-eyebrow">
+            <p className="stage-lede">
               {booked ? "Booked" : expired ? "This hold has ended" : `Your agent arranged this for ${offer.customerName}`}
             </p>
-            <h1>{offer.service}</h1>
-            <p className="paypage-biz">
-              {offer.businessName}, {offer.city}
-            </p>
-            <dl className="paypage-facts">
-              <div>
-                <dt>{offer.kind === "pickup" ? "Pickup" : "When"}</dt>
-                <dd>
-                  {niceDate(offer.date)}, {offer.time} ({cityOf(offer.timezone)} time)
-                </dd>
-              </div>
-              <div>
-                <dt>Total</dt>
-                <dd className="paypage-amt">
-                  ${offer.amount} <small>{offer.currency}</small>
-                </dd>
-              </div>
-            </dl>
-            {booked ? (
-              <div className="receipt">
-                <span className="receipt-ok" aria-hidden>
-                  <Icon d="M5 12l4 4L19 6" />
-                </span>
-                <div>
-                  <strong>Paid and booked, ref {offer.bookingRef}</strong>
-                  <span>PayPal confirmed the payment. {offer.businessName} has your booking.</span>
-                </div>
-              </div>
-            ) : expired ? (
-              <p className="paypage-note">Nothing was charged. Ask your agent to hold a time again.</p>
-            ) : (
-              <>
-                <div className="paypage-pay">
+            <Pass
+              label="Payment offer"
+              title={offer.service}
+              place={`${offer.businessName}, ${offer.city}`}
+              when={`${offer.kind === "pickup" ? "Pickup " : ""}${niceDate(offer.date)}, ${offer.time} ${cityOf(offer.timezone)} time`}
+              amount={offer.amount}
+              currency={offer.currency}
+              state={booked ? "paid" : expired ? "expired" : "offer"}
+              status={
+                booked ? (
+                  <span className="badge ok">Paid</span>
+                ) : expired ? (
+                  <span className="badge">Hold ended</span>
+                ) : (
+                  <HoldClock label={`Held for ${clock}`} />
+                )
+              }
+              note={
+                booked
+                  ? `PayPal confirmed the payment. ${offer.businessName} has your booking.`
+                  : expired
+                    ? "Nothing was charged. Ask your agent to hold a time again."
+                    : `Nothing is charged until you approve in PayPal. ${offer.policy}`
+              }
+              enter
+            >
+              {booked && <Seal title="Paid and booked" detail={offer.bookingRef ? `Ref ${offer.bookingRef} · PayPal confirmed` : "PayPal confirmed"} />}
+              {!booked && !expired && (
+                <div className="pass-pay">
                   {paypal.mode !== "mock" && paypal.clientId ? (
                     <PayPalScriptProvider
                       options={{
@@ -138,7 +149,7 @@ export function PayPage({ token }: { token: string }) {
                       }}
                     >
                       <PayPalButtons
-                        style={{ layout: "vertical", tagline: false, height: 46, shape: "pill", color: "gold" }}
+                        style={{ layout: "vertical", tagline: false, height: 46, shape: "rect", color: "gold" }}
                         disabled={working}
                         createOrder={async () => offer.orderId}
                         onApprove={async () => capture()}
@@ -158,20 +169,16 @@ export function PayPage({ token }: { token: string }) {
                     </button>
                   )}
                 </div>
-                <p className="paypage-note">
-                  This time is held for {Math.floor(left / 60000)} min {String(Math.floor((left % 60000) / 1000)).padStart(2, "0")} s. Nothing is charged until you
-                  approve in PayPal. {offer.policy}
-                </p>
-              </>
-            )}
-            {error && <p className="err">{error}</p>}
+              )}
+              {error && <p className="err pass-err">{error}</p>}
+            </Pass>
+            <p className="stage-trust">
+              Your AI agent cannot pay by itself. The price comes from {offer.businessName}, and the booking exists only once PayPal confirms your
+              payment.
+            </p>
           </>
         )}
-        <p className="paypage-foot">
-          Your AI agent can't pay by itself. The price comes from {offer?.businessName ?? "the business"}, and the booking exists only once PayPal
-          confirms your payment.
-        </p>
-      </div>
+      </main>
     </div>
   );
 }

@@ -15,14 +15,29 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 
 ![Ordina Agent Checkout: ask your agent, it agrees the booking with the business, you approve one PayPal payment](docs/screenshot.jpg)
 
-## Four doors
+## How people use it
+
+**Customers don't need another app.** They open the site, pick the assistant they already use (Claude, ChatGPT, Gemini, Le Chat, Perplexity, Cursor, VS Code), and we send them to that assistant's own settings page with our address to copy, or a one-click install where the assistant supports one. From then on they just ask their assistant to book.
+
+**Businesses set up in about five minutes** at `/business`:
+
+1. Sign up with a name, city, email and password.
+2. **Paste a link** to their website, booking page or price list. The server reads the page (public addresses only), Claude pulls out what they sell, and the owner answers a few questions about anything missing (a price, how long a service takes, a price in another currency). Nothing is saved until the owner has checked every line. Or they add everything themselves.
+3. Opening hours (one-tap presets), a free-cancellation window, and getting paid (in this Sandbox build, Ordina's PayPal Sandbox seller; with PayPal Multiparty, their own PayPal).
+4. **Go live.** Any connected assistant can now find and book them, and they get their own link for Instagram or WhatsApp.
+
+Connecting an existing booking platform (Ordina, Square, Fresha, Shopify and others) through the provider interface below is shown as **coming soon**.
+
+## The doors
 
 | Door | Who uses it | What it does |
 |---|---|---|
+| **`/`** | Customers | Pick your assistant; get the exact steps, the address to copy, or a one-click install. |
 | **`/mcp`** | Any MCP client (Claude, ChatGPT apps, other agents) | Three tools: `find_businesses`, `message_business`, `booking_status`. No tool can pay. |
 | **`/pay/<token>`** | The customer | A hosted page showing exactly what they approve (item, business, time, price, policy) with PayPal's button. The link is unguessable and lasts as long as the 15-minute hold. |
-| **`/`** | Anyone trying it | A playground chat with our own agent. "Worked with..." under each answer shows every message, check, hold and PayPal call. Also: bookings with cancel, a spending limit, and the MCP address. |
-| **`/business`** | Business owners | Each simulated business's bookings, what PayPal paid it, PayPal's fee, and **Refund** or **Cancel** for 180 days. |
+| **`/try`** | Anyone without an assistant, and judges | A playground chat with our own agent. "Worked with..." under each answer shows every message, check, hold and PayPal call. Also: bookings with cancel and a spending limit. |
+| **`/b/<handle>`** | A business's own customers | The playground, already talking to that business's Secretary. |
+| **`/business`** | Business owners | Sign up and the guided setup above, then bookings, what PayPal paid, PayPal's fee, and **Refund** or **Cancel** for 180 days. Four simulated businesses are there to look around. |
 
 ## Try it from Claude
 
@@ -30,11 +45,11 @@ Built by [Ordina](https://www.useordina.com) for the PayPal AI Hackathon 2026. O
 2. Ask: *"Book me a silk press in Lagos tomorrow morning, my name is Ada, up to $50."*
 3. Claude finds Lumen Hair Studio, agrees a time with its Secretary, and gives you a pay link. Open it, pay by card (no PayPal account needed) or with a PayPal Sandbox buyer account, and ask Claude whether it's booked.
 
-Without Claude: `node node_modules/tsx/dist/cli.mjs scripts/mcp-probe.mts` acts as an outside agent against a local server and prints the offer and pay link.
+Without Claude: `node node_modules/tsx/dist/cli.mjs scripts/mcp-probe.mts [base url]` acts as an outside agent (against `http://localhost:8787` by default, or e.g. the live demo) and prints the offer and pay link.
 
 ## Safety is in the code, not the prompt
 
-An agent that can spend money needs rules it cannot talk its way around. All of these are enforced by the server, whatever a model says, and each has a test (48 tests in `test/`):
+An agent that can spend money needs rules it cannot talk its way around. All of these are enforced by the server, whatever a model says, and each has a test (70 tests in `test/`):
 
 | # | Rule | Where |
 |---|---|---|
@@ -74,6 +89,10 @@ Two agents on Claude (`claude-opus-5-5`), each a small tool loop (`server/agents
 
 The agents talk in plain language, but every fact that matters comes from the server: `message_business` returns the Secretary's reply **and** the server's payment offer.
 
+## Design
+
+One visual language across the front door, the playground, the pay page and the business app. The payment offer is always the same object, **the pass**, and it **seals** when PayPal confirms the capture; the front door plays a whole booking as a live sequence. Ordina's teal carries actions, green only ever means money PayPal confirmed, and PayPal's gold appears only on PayPal's button. Tokens, type, motion and the shared pieces are written down in [docs/DESIGN.md](docs/DESIGN.md).
+
 ## Run it
 
 ```bash
@@ -94,6 +113,8 @@ With no keys it runs fully offline: scripted agents drive the same tools and Pay
 **No PayPal account needed.** Customers can pay by card through PayPal's own form (guest checkout) wherever PayPal offers it; PayPal decides which buttons to show from where the buyer is. In the Sandbox the buttons assume a US buyer (`PAYPAL_SANDBOX_BUYER_COUNTRY`, default `US`), so the card button can be tried from any country; live always uses the buyer's real location.
 
 **With Claude:** set `ANTHROPIC_API_KEY` for the Claude API, or `CENCORI_API_KEY` to reach the same Claude model through the [Cencori](https://cencori.com) AI gateway (if both are set, `AI_GATEWAY=cencori` picks Cencori). Agent turns are limited per IP per hour and per day (`TURNS_PER_IP_PER_HOUR`, `DAILY_TURN_CAP`), for the chat and MCP alike.
+
+`BUSINESS_SIGNUP=1` opens business sign-up and the guided setup (on in the Render blueprint); without it, `/business` only shows the simulated businesses.
 
 Data is SQLite (Node's built-in `node:sqlite`, Node 24), in `./data` or `DATA_DIR`. Tests: `npm test`.
 

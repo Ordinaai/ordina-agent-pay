@@ -19,6 +19,8 @@ services:
         value: sandbox
       - key: PLATFORM_FEE_PERCENT
         value: "0"
+      - key: BUSINESS_SIGNUP # businesses can sign up and set themselves up
+        value: "1"
       - key: TURNS_PER_IP_PER_HOUR
         value: "30"
       - key: DAILY_TURN_CAP

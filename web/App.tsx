@@ -1,6 +1,7 @@
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Icon, Mark } from "./ui.tsx";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { ConnectPicker } from "./connect.tsx";
+import { HoldClock, Icon, Mark, Pass, Seal, SecretaryStar } from "./ui.tsx";
 
 // ---------- shared shapes ----------
 type WireEvent = {
@@ -127,7 +128,10 @@ const money = (s?: string) => s?.match(/(\d+\.\d{2})/)?.[1];
 const shortWhen = (t: number) => new Date(t).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 // ---------- turn model: one request from you and everything that followed ----------
-type Step = { id: number; text: string; tone?: "bad" | "ok" };
+// Each step belongs to a lane: who did it. The trace shows the lane as a small tag and a rail dot.
+type Lane = "assistant" | "secretary" | "server" | "paypal";
+const LANES: Record<Lane, string> = { assistant: "Your assistant", secretary: "Secretary", server: "Server", paypal: "PayPal" };
+type Step = { id: number; text: string; tone?: "bad" | "ok"; lane: Lane };
 type Turn = {
   key: number;
   user: string;
@@ -138,7 +142,24 @@ type Turn = {
   businesses: string[];
 };
 
+function laneOf(e: WireEvent): Lane {
+  if (e.kind === "paypal") return "paypal"; // the order, the capture, the refund
+  if (e.kind === "guardrail") return "server"; // the checks and the spending limit
+  if (e.kind === "tool") {
+    if (e.title === "hold_time" || e.title === "create_payment" || e.title === "request_payment_approval") return "server";
+    return e.actor === "secretary" ? "secretary" : e.actor === "buyer" ? "assistant" : "server";
+  }
+  if (e.kind === "buyer_to_business") return "assistant";
+  if (e.kind === "business_to_buyer") return "secretary";
+  return e.actor === "secretary" ? "secretary" : e.actor === "paypal" ? "paypal" : e.actor === "buyer" ? "assistant" : "server";
+}
+
 function describe(e: WireEvent, biz: (id?: string) => string): Step | null {
+  const said = say(e, biz);
+  return said ? { ...said, lane: laneOf(e) } : null;
+}
+
+function say(e: WireEvent, biz: (id?: string) => string): Omit<Step, "lane"> | null {
   const r = (e.data?.result ?? {}) as Record<string, unknown>;
   let input: Record<string, unknown> = {};
   try {
@@ -230,7 +251,7 @@ export function App({ handle }: { handle?: string }) {
       if (!v.id && pinned) {
         // A new chat from the menu is a general one, not the business's link.
         setPinned(null);
-        history.replaceState(null, "", "/");
+        history.replaceState(null, "", "/try");
       }
     }
     setDrawer(false);
@@ -238,14 +259,14 @@ export function App({ handle }: { handle?: string }) {
   const chatId = view.name === "chat" ? view.id : null;
 
   return (
-    <div className={`app ${drawer ? "drawer-open" : ""}`}>
+    <div className={`app play ${drawer ? "drawer-open" : ""}`}>
       <aside className="side" aria-label="Navigation">
         <div className="side-top">
           <span className="brand">
             <Mark /> Ordina <em className="for">Agent Checkout</em>
           </span>
         </div>
-        <button className="side-new" onClick={() => go({ name: "chat", id: null })}>
+        <button className="btn-line side-new" onClick={() => go({ name: "chat", id: null })}>
           <Icon d="M12 5v14M5 12h14" /> New chat
         </button>
         <nav className="side-nav">
@@ -256,7 +277,7 @@ export function App({ handle }: { handle?: string }) {
             <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" /> Spending limit
           </button>
           <button className={view.name === "connect" ? "on" : ""} onClick={() => go({ name: "connect" })}>
-            <Icon d="M9 15l6-6M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1" /> Use from Claude
+            <Icon d="M9 15l6-6M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1" /> Use in your assistant
           </button>
         </nav>
         <div className="side-label">Chats</div>
@@ -275,7 +296,9 @@ export function App({ handle }: { handle?: string }) {
           <span className="me">G</span>
           <div>
             <strong>Guest</strong>
-            <span>${limit} limit per payment</span>
+            <span>
+              <b className="num">${limit}</b> limit per payment
+            </span>
           </div>
         </div>
       </aside>
@@ -287,7 +310,7 @@ export function App({ handle }: { handle?: string }) {
             <Icon d="M4 7h16M4 12h16M4 17h16" />
           </button>
           <span className="top-title">
-            {view.name === "bookings" ? "Bookings" : view.name === "settings" ? "Spending limit" : view.name === "connect" ? "Use from Claude" : "Your agent"}
+            {view.name === "bookings" ? "Bookings" : view.name === "settings" ? "Spending limit" : view.name === "connect" ? "Use in your assistant" : "Your agent"}
           </span>
           {config && (
             <span className="env" title="Test mode: no real money moves">
@@ -314,9 +337,11 @@ export function App({ handle }: { handle?: string }) {
             openBookings={() => go({ name: "bookings" })}
           />
         )}
-        {view.name === "bookings" && <BookingsView chats={chats} openChat={(id) => go({ name: "chat", id })} />}
+        {view.name === "bookings" && (
+          <BookingsView chats={chats} openChat={(id) => go({ name: "chat", id })} newChat={() => go({ name: "chat", id: null })} />
+        )}
         {view.name === "settings" && <LimitView limit={limit} setLimit={setLimit} />}
-        {view.name === "connect" && <ConnectView />}
+        {view.name === "connect" && <ConnectView onTry={() => go({ name: "chat", id: null })} />}
       </main>
     </div>
   );
@@ -348,11 +373,37 @@ function ChatView({
   const biz = useCallback((id?: string) => config?.businesses.find((b) => b.id === id)?.name ?? "The business", [config]);
   const turns = useMemo(() => buildTurns(events, biz), [events, biz]);
   const paid = useMemo(() => new Set(events.filter((e) => e.kind === "booking" && e.data?.orderId).map((e) => String(e.data!.orderId))), [events]);
+  // The booking reference for each paid order, so the pass can seal with it.
+  const refs = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of events) {
+      const ref = e.kind === "booking" && e.data?.orderId ? e.title.match(/ref (\w+)/)?.[1] : undefined;
+      if (ref) m.set(String(e.data!.orderId), ref);
+    }
+    return m;
+  }, [events]);
+  const inner = useRef<HTMLDivElement>(null);
+  const hasTurns = turns.length > 0;
 
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [events.length, busy]);
+  // Steps and the pass are revealed in sequence after their events arrive: keep the newest in view.
+  useEffect(() => {
+    const el = scroller.current;
+    const box = inner.current;
+    if (!el || !box || typeof ResizeObserver !== "function") return;
+    let last = box.offsetHeight;
+    const ro = new ResizeObserver(() => {
+      const h = box.offsetHeight;
+      const grew = h - last;
+      last = h;
+      if (grew > 0 && el.scrollHeight - el.scrollTop - el.clientHeight < grew + 240) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [hasTurns]);
 
   const send = async (text: string) => {
     const t = text.trim();
@@ -370,7 +421,7 @@ function ChatView({
       if (pinned?.live && turns.length === 0) await post("/api/pin", { session: id, businessId: pinned.id });
       await post("/api/chat", { session: id, text: t });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't send. Try again.");
+      setError(e instanceof Error ? e.message : "That did not send. Try again.");
     } finally {
       setBusy(false);
     }
@@ -382,20 +433,19 @@ function ChatView({
         <div className="home-inner">
           {pinned ? (
             <>
-              <span className="pin-badge">{pinned.name.slice(0, 1)}</span>
-              <h1>Book with {pinned.name}</h1>
-              <p className="home-sub">
-                {pinned.category} in {pinned.city}. {pinned.about || "Tell me what you'd like and when; I'll sort it out with their Secretary."}
+              <span className="pin-badge rise">{pinned.name.slice(0, 1)}</span>
+              <h1 className="rise">Book with {pinned.name}</h1>
+              <p className="home-sub rise" style={{ "--i": 1 } as CSSProperties}>
+                {pinned.category} in {pinned.city}. {pinned.about || "Tell me what you would like and when, and I will arrange it with their Secretary."}
               </p>
-              {!pinned.live && <p className="err">{pinned.name} isn't taking bookings right now.</p>}
+              {!pinned.live && <p className="err">{pinned.name} is not taking bookings right now.</p>}
             </>
           ) : (
             <>
-              <Mark big />
-              <h1>What can I book or buy for you?</h1>
-              <p className="home-sub">
+              <h1 className="rise">What can I book for you?</h1>
+              <p className="home-sub rise" style={{ "--i": 1 } as CSSProperties}>
                 {handleMissing
-                  ? "That link doesn't lead to a business taking bookings, but I can find you another."
+                  ? "That link does not lead to a business taking bookings, but I can find you another."
                   : "I find the business, agree the details with its AI Secretary, and bring you one PayPal payment to approve."}
               </p>
             </>
@@ -407,12 +457,27 @@ function ChatView({
               : SUGGESTIONS
             ).map((s) => (
               <button key={s} onClick={() => send(s)} disabled={busy || (pinned ? !pinned.live : false)}>
-                {s}
+                <span>{s}</span>
+                <Icon d="M5 12h14M13 6l6 6-6 6" />
               </button>
             ))}
           </div>
           {error && <p className="err">{error}</p>}
         </div>
+        <ul className="home-facts">
+          <li>
+            <span className="eyebrow">Price</span>
+            <span>Prices come from the business, never from the AI.</span>
+          </li>
+          <li>
+            <span className="eyebrow">Payment</span>
+            <span>Your agent never pays by itself. Every payment waits for you in PayPal.</span>
+          </li>
+          <li>
+            <span className="eyebrow">Booking</span>
+            <span>A booking only exists once PayPal confirms the payment.</span>
+          </li>
+        </ul>
       </div>
     );
   }
@@ -421,13 +486,14 @@ function ChatView({
   return (
     <div className="chat">
       <div className="thread" ref={scroller}>
-        <div className="thread-inner">
+        <div className="thread-inner" ref={inner}>
           {turns.map((t) => (
             <TurnView
               key={t.key}
               turn={t}
               live={busy && t === last}
               paid={paid}
+              refs={refs}
               chatId={liveId}
               config={config}
               openBookings={openBookings}
@@ -438,16 +504,43 @@ function ChatView({
       </div>
       <div className="dock">
         <Composer onSend={send} busy={busy} />
-        <p className="dock-note">Your agent can't pay by itself. Every payment waits for you in PayPal.</p>
+        <p className="dock-note">Your agent cannot pay by itself. Every payment waits for you in PayPal.</p>
       </div>
     </div>
   );
+}
+
+// The orchestrated moment: steps are revealed one at a time while a turn is being worked on,
+// then the trace folds away and the reply and the pass arrive. Presentation only: the events,
+// and what they say, are untouched. A turn loaded from history shows everything at once.
+const STEP_MS = 320;
+function usePaced(total: number, live: boolean) {
+  const [shown, setShown] = useState(() => (live ? 0 : total));
+  const phase = useRef<"stream" | "done">(live ? "stream" : "done");
+  useEffect(() => {
+    if (phase.current === "done") {
+      if (shown !== total) setShown(total);
+      return;
+    }
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || shown >= total) {
+      if (shown !== total) setShown(total);
+      if (!live) phase.current = "done";
+      return;
+    }
+    const t = setTimeout(() => setShown((n) => n + 1), STEP_MS);
+    return () => clearTimeout(t);
+  }, [total, shown, live]);
+  const streaming = phase.current === "stream";
+  const visible = streaming ? Math.min(shown, total) : total;
+  return { visible, working: streaming && (live || visible < total) };
 }
 
 function TurnView({
   turn,
   live,
   paid,
+  refs,
   chatId,
   config,
   openBookings,
@@ -455,13 +548,18 @@ function TurnView({
   turn: Turn;
   live: boolean;
   paid: Set<string>;
+  refs: Map<string, string>;
   chatId: string;
   config: Config | null;
   openBookings: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const { visible, working } = usePaced(turn.steps.length, live);
+  // Open while the agents work, folded to one line when they finish, unless you chose otherwise.
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const open = chosen ?? working;
+  const settled = visible >= turn.steps.length;
+  const steps = turn.steps.slice(0, visible);
   const [first, ...later] = turn.replies;
-  const lastStep = turn.steps[turn.steps.length - 1];
   return (
     <div className="turn">
       <div className="you">
@@ -471,44 +569,75 @@ function TurnView({
         <Mark small />
         <div className="agent-body">
           {(turn.steps.length > 0 || live) && (
-            <div className={`work ${open ? "open" : ""}`}>
-              <button className="work-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-                {live ? <span className="spin" aria-hidden /> : <Icon d="M5 12l4 4L19 6" />}
-                <span className="work-title">
-                  {live
-                    ? lastStep?.text ?? "Thinking"
+            <div className={`trace ${open ? "open" : ""} ${working ? "is-live" : ""}`}>
+              <button className="trace-head" onClick={() => setChosen(!open)} aria-expanded={open}>
+                <span className="trace-ico">{working ? <span className="spin" aria-hidden /> : <Icon d="M5 12l4 4L19 6" />}</span>
+                <span className="trace-title">
+                  {working
+                    ? turn.businesses.length
+                      ? `Working with ${turn.businesses.join(", ")}`
+                      : "Thinking"
                     : turn.businesses.length
                       ? `Worked with ${turn.businesses.join(", ")}`
                       : "Looked into it"}
                 </span>
-                <span className="work-count">{turn.steps.length} steps</span>
+                <span className="trace-strip" aria-hidden>
+                  {steps.map((s) => (
+                    <i key={s.id} className={`lane-${s.lane}`} />
+                  ))}
+                </span>
+                {steps.length > 0 && (
+                  <span className="trace-count">
+                    {steps.length} {steps.length === 1 ? "step" : "steps"}
+                  </span>
+                )}
                 <Icon d="M9 6l6 6-6 6" className="chev" />
               </button>
-              {open && (
-                <ol className="work-steps">
-                  {turn.steps.map((s) => (
-                    <li key={s.id} className={s.tone ?? ""}>
-                      {s.text}
-                    </li>
-                  ))}
+              <div className="trace-body">
+                <ol className="trace-steps">
+                  {steps.map((s, i) => {
+                    const now = working && i === steps.length - 1;
+                    return (
+                      <li key={s.id} className={`trace-step lane-${s.lane} rise ${s.tone ?? ""} ${now ? "is-now" : ""}`}>
+                        <i className="trace-dot" aria-hidden />
+                        <span className="trace-lane">
+                          {s.lane === "secretary" && <SecretaryStar size={11} />}
+                          {LANES[s.lane]}
+                        </span>
+                        <span className="trace-text">
+                          {s.text}
+                          {now && (
+                            <span className="trace-now" aria-hidden>
+                              <i />
+                              <i />
+                              <i />
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ol>
-              )}
+              </div>
             </div>
           )}
-          {first && <p className="reply">{first}</p>}
-          {turn.approvals.map((a) => (
-            <PayCard key={a.orderId} a={a} paid={paid.has(a.orderId)} chatId={chatId} config={config} />
-          ))}
-          {turn.receipts
-            .filter((r) => !r.title.toLowerCase().includes("refund"))
-            .map((r) => (
-              <Receipt key={r.id} r={r} openBookings={openBookings} />
+          {settled && first && <p className="reply">{first}</p>}
+          {settled &&
+            turn.approvals.map((a) => (
+              <PayCard key={a.orderId} a={a} paid={paid.has(a.orderId)} bookingRef={refs.get(a.orderId)} chatId={chatId} config={config} />
             ))}
-          {later.map((t, i) => (
-            <p className="reply" key={i}>
-              {t}
-            </p>
-          ))}
+          {settled &&
+            turn.receipts
+              .filter((r) => !r.title.toLowerCase().includes("refund"))
+              .map((r) => (
+                <Receipt key={r.id} r={r} sealed={turn.approvals.some((a) => a.orderId === r.orderId)} openBookings={openBookings} />
+              ))}
+          {settled &&
+            later.map((t, i) => (
+              <p className="reply" key={i}>
+                {t}
+              </p>
+            ))}
         </div>
       </div>
     </div>
@@ -570,7 +699,19 @@ function useCountdown(until: number) {
   return { left, label: `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, "0")}` };
 }
 
-function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chatId: string; config: Config | null }) {
+function PayCard({
+  a,
+  paid,
+  bookingRef,
+  chatId,
+  config,
+}: {
+  a: Approval;
+  paid: boolean;
+  bookingRef?: string;
+  chatId: string;
+  config: Config | null;
+}) {
   const { left, label } = useCountdown(a.expiresAt);
   const [working, setWorking] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -595,26 +736,31 @@ function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chat
   };
 
   return (
-    <div className={`pay ${paid ? "is-paid" : ""} ${expired ? "is-expired" : ""}`}>
-      <div className="pay-head">
-        <span>{paid ? "Paid" : expired ? "Hold ended" : "Approve payment"}</span>
-        {!paid && !expired && <span className="pay-timer">Held for {label}</span>}
-      </div>
-      <div className="pay-body">
-        <div className="pay-what">
-          <strong>{a.service}</strong>
-          <span>{a.businessName}</span>
-          <span>
-            {niceDate(a.date)}, {a.time} {cityOf(a.timezone)} time
-          </span>
-        </div>
-        <div className="pay-amt">
-          ${a.amount}
-          <small>{a.currency}</small>
-        </div>
-      </div>
+    <Pass
+      label="Payment offer"
+      title={a.service}
+      place={a.businessName}
+      when={`${niceDate(a.date)}, ${a.time} ${cityOf(a.timezone)} time`}
+      amount={a.amount}
+      currency={a.currency}
+      state={paid ? "paid" : expired ? "expired" : "offer"}
+      status={
+        paid ? <span className="badge ok">Paid</span> : expired ? <span className="badge">Hold ended</span> : <HoldClock label={`Held for ${label}`} />
+      }
+      note={
+        paid
+          ? config?.paypalFlow === "multiparty"
+            ? `Payment confirmed by PayPal. ${a.businessName} receives it after your booking.`
+            : `Payment confirmed by PayPal and paid to ${a.businessName}.`
+          : expired
+            ? "Nothing was charged. Ask me to hold it again."
+            : `Paid to ${a.businessName} through PayPal, with PayPal's buyer protection. ${a.policy}`
+      }
+      enter
+    >
+      {paid && <Seal title="Paid and booked" detail={bookingRef ? `Ref ${bookingRef} · PayPal confirmed` : "PayPal confirmed"} />}
       {!paid && !expired && (
-        <div className="pay-action">
+        <div className="pass-pay">
           {config?.paypal !== "mock" && config?.paypalClientId ? (
             <PayPalScriptProvider
               options={{
@@ -627,7 +773,7 @@ function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chat
               {/* Vertical: the horizontal layout never shows PayPal's "Debit or Credit Card" button,
                   which is how a customer without a PayPal account pays. */}
               <PayPalButtons
-                style={{ layout: "vertical", tagline: false, height: 44, shape: "pill", color: "gold" }}
+                style={{ layout: "vertical", tagline: false, height: 44, shape: "rect", color: "gold" }}
                 disabled={working}
                 createOrder={async () => a.orderId}
                 onApprove={async () => capture()}
@@ -648,38 +794,37 @@ function PayCard({ a, paid, chatId, config }: { a: Approval; paid: boolean; chat
           )}
         </div>
       )}
-      <p className="pay-fine">
-        {paid
-          ? config?.paypalFlow === "multiparty"
-            ? `Payment confirmed by PayPal. ${a.businessName} receives it after your booking.`
-            : `Payment confirmed by PayPal and paid to ${a.businessName}.`
-          : expired
-            ? "Nothing was charged. Ask me to hold it again."
-            : `Paid to ${a.businessName} through PayPal, with PayPal's buyer protection. ${a.policy}`}
-      </p>
-      {msg && <p className="pay-fine err">{msg}</p>}
-    </div>
+      {msg && <p className="err pass-err">{msg}</p>}
+    </Pass>
   );
 }
 
-function Receipt({ r, openBookings }: { r: { title: string; detail?: string }; openBookings: () => void }) {
+// After the pass has sealed: one quiet line, and the way to the booking.
+function Receipt({ r, sealed, openBookings }: { r: { title: string; detail?: string }; sealed: boolean; openBookings: () => void }) {
   const ref = r.title.match(/ref (\w+)/)?.[1];
   return (
-    <div className="receipt">
-      <span className="receipt-ok" aria-hidden>
-        <Icon d="M5 12l4 4L19 6" />
+    <p className="booked">
+      <Icon d="M5 12l4 4L19 6" />
+      <span>
+        <strong>
+          Booked
+          {ref && (
+            <>
+              , ref <b className="num">{ref}</b>
+            </>
+          )}
+        </strong>
+        {!sealed && r.detail && <> · {r.detail}</>}{" "}
+        <button className="linkish" onClick={openBookings}>
+          View booking
+        </button>
       </span>
-      <div>
-        <strong>Booked{ref ? `, ref ${ref}` : ""}</strong>
-        {r.detail && <span>{r.detail}</span>}
-      </div>
-      <button onClick={openBookings}>View</button>
-    </div>
+    </p>
   );
 }
 
 // ---------- bookings ----------
-function BookingsView({ chats, openChat }: { chats: Chat[]; openChat: (id: string) => void }) {
+function BookingsView({ chats, openChat, newChat }: { chats: Chat[]; openChat: (id: string) => void; newChat: () => void }) {
   const [items, setItems] = useState<MyBooking[] | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
@@ -709,7 +854,7 @@ function BookingsView({ chats, openChat }: { chats: Chat[]; openChat: (id: strin
       setMsg({ id: b.id, text: `Cancelled. PayPal is returning $${b.amount} to you.` });
       load();
     } catch (e) {
-      setMsg({ id: b.id, text: e instanceof Error ? e.message : "Couldn't cancel.", bad: true });
+      setMsg({ id: b.id, text: e instanceof Error ? e.message : "Could not cancel.", bad: true });
     } finally {
       setWorking(null);
       setConfirm(null);
@@ -727,108 +872,125 @@ function BookingsView({ chats, openChat }: { chats: Chat[]; openChat: (id: strin
         {items === null && <p className="muted">Loading</p>}
         {items?.length === 0 && (
           <div className="blank">
-            <p>No bookings yet.</p>
+            <p>No bookings yet</p>
             <span>Ask your agent for something, approve the payment, and it shows up here.</span>
+            <button className="btn-dark" onClick={newChat}>
+              <Icon d="M12 5v14M5 12h14" /> New chat
+            </button>
           </div>
         )}
-        {upcoming.length > 0 && <div className="group">Upcoming</div>}
-        {upcoming.map((b) => {
-          const canCancel = b.cancelUntil !== null && Date.now() < b.cancelUntil;
-          return (
-            <div key={b.id} className="bk">
-              <div className="bk-main">
-                <strong>{b.serviceName}</strong>
-                <span>
-                  {b.businessName}, {b.city}
-                </span>
-                <span>
-                  {niceDate(b.date)} at {b.time} {cityOf(b.timezone)} time
-                </span>
-                <span className="bk-ref">
-                  Ref {b.ref} · Paid with PayPal{b.paidAs ? ` as ${b.paidAs}` : ""} ·{" "}
-                  <button className="linkish" onClick={() => openChat(b.chatId)}>
-                    Open chat
-                  </button>
-                </span>
-              </div>
-              <div className="bk-side">
-                <span className="bk-amt">${b.amount}</span>
-                {confirm === b.id ? (
-                  <div className="confirm">
-                    <span>Cancel and get ${b.amount} back?</span>
-                    <div>
-                      <button className="btn-danger" onClick={() => cancel(b)} disabled={working === b.id}>
-                        {working === b.id ? "Cancelling" : "Cancel booking"}
-                      </button>
-                      <button className="btn-ghost" onClick={() => setConfirm(null)}>
-                        Keep it
-                      </button>
-                    </div>
-                  </div>
-                ) : canCancel ? (
-                  <>
-                    <button className="btn-line" onClick={() => setConfirm(b.id)}>
-                      Cancel
-                    </button>
-                    <span className="bk-note">Free until {shortWhen(b.cancelUntil!)}</span>
-                  </>
-                ) : (
-                  <span className="bk-note">Past the free cancellation window</span>
-                )}
-              </div>
-              {msg?.id === b.id && <p className={`bk-msg ${msg.bad ? "bad" : ""}`}>{msg.text}</p>}
-            </div>
-          );
-        })}
-        {past.length > 0 && <div className="group">Cancelled</div>}
-        {past.map((b) => (
-          <div key={b.id} className="bk is-past">
-            <div className="bk-main">
-              <strong>{b.serviceName}</strong>
-              <span>
-                {b.businessName}, {niceDate(b.date)} at {b.time}
-              </span>
-              <span className="bk-ref">Ref {b.ref}</span>
-            </div>
-            <div className="bk-side">
-              <span className="bk-amt">${b.amount}</span>
-              <span className="bk-note">
-                {b.cancelledBy === "business" ? "Cancelled by the business" : "You cancelled"}
-                {Number(b.refunded) > 0 ? `, $${b.refunded} refunded` : ", no refund"}
-              </span>
-            </div>
-            {msg?.id === b.id && <p className="bk-msg">{msg.text}</p>}
+        {upcoming.length > 0 && (
+          <div className="group">
+            <span className="eyebrow">Upcoming</span>
+            <span className="num">{upcoming.length}</span>
           </div>
-        ))}
+        )}
+        {upcoming.length > 0 && (
+          <div className="bk-list">
+            {upcoming.map((b) => {
+              const canCancel = b.cancelUntil !== null && Date.now() < b.cancelUntil;
+              return (
+                <article key={b.id} className="bk">
+                  <div className="bk-what">
+                    <strong>{b.serviceName}</strong>
+                    <span>
+                      {b.businessName}, {b.city}
+                    </span>
+                  </div>
+                  <div className="bk-when">
+                    <span className="num">
+                      {niceDate(b.date)} at {b.time} {cityOf(b.timezone)} time
+                    </span>
+                    <span className="bk-ref">
+                      <span className="num">Ref {b.ref}</span> · Paid with PayPal{b.paidAs ? ` as ${b.paidAs}` : ""} ·{" "}
+                      <button className="linkish" onClick={() => openChat(b.chatId)}>
+                        Open chat
+                      </button>
+                    </span>
+                  </div>
+                  <span className="badge ok bk-status">Confirmed</span>
+                  <span className="bk-amt">${b.amount}</span>
+                  <div className="bk-act">
+                    {confirm === b.id ? (
+                      <div className="confirm">
+                        <span>Cancel and get ${b.amount} back?</span>
+                        <div>
+                          <button className="btn-danger" onClick={() => cancel(b)} disabled={working === b.id}>
+                            {working === b.id ? "Cancelling" : "Cancel booking"}
+                          </button>
+                          <button className="btn-ghost" onClick={() => setConfirm(null)}>
+                            Keep it
+                          </button>
+                        </div>
+                      </div>
+                    ) : canCancel ? (
+                      <>
+                        <button className="btn-line" onClick={() => setConfirm(b.id)}>
+                          Cancel
+                        </button>
+                        <span className="bk-note">Free until {shortWhen(b.cancelUntil!)}</span>
+                      </>
+                    ) : (
+                      <span className="bk-note">Past the free cancellation window</span>
+                    )}
+                  </div>
+                  {msg?.id === b.id && <p className={`bk-msg ${msg.bad ? "bad" : ""}`}>{msg.text}</p>}
+                </article>
+              );
+            })}
+          </div>
+        )}
+        {past.length > 0 && (
+          <div className="group">
+            <span className="eyebrow">Cancelled</span>
+            <span className="num">{past.length}</span>
+          </div>
+        )}
+        {past.length > 0 && (
+          <div className="bk-list">
+            {past.map((b) => (
+              <article key={b.id} className="bk is-past">
+                <div className="bk-what">
+                  <strong>{b.serviceName}</strong>
+                  <span>{b.businessName}</span>
+                </div>
+                <div className="bk-when">
+                  <span className="num">
+                    {niceDate(b.date)} at {b.time}
+                  </span>
+                  <span className="bk-ref">
+                    <span className="num">Ref {b.ref}</span>
+                  </span>
+                </div>
+                <span className="badge bk-status">Cancelled</span>
+                <span className="bk-amt">${b.amount}</span>
+                <div className="bk-act">
+                  <span className="bk-note">
+                    {b.cancelledBy === "business" ? "Cancelled by the business" : "You cancelled"}
+                    {Number(b.refunded) > 0 ? `, $${b.refunded} refunded` : ", no refund"}
+                  </span>
+                </div>
+                {msg?.id === b.id && <p className="bk-msg">{msg.text}</p>}
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ---------- the same checkout from any MCP client ----------
-function ConnectView() {
-  const url = `${location.origin}/mcp`;
-  const [copied, setCopied] = useState(false);
+// ---------- the same checkout from the assistant you already use ----------
+function ConnectView({ onTry }: { onTry: () => void }) {
   return (
     <div className="page">
-      <div className="page-inner narrow">
-        <h2>Use from Claude</h2>
+      <div className="page-inner">
+        <h2>Use in your assistant</h2>
         <p className="page-sub">
-          The same checkout works from any AI assistant that speaks MCP. Add this address as a custom connector, then ask it to book something.
+          Add Ordina to the AI assistant you already use, then ask it to book something. You approve each payment in PayPal.
         </p>
-        <div className="linkbox">
-          <code>{url}</code>
-          <button
-            className="btn-line"
-            onClick={() =>
-              navigator.clipboard.writeText(url).then(() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              })
-            }
-          >
-            {copied ? "Copied" : "Copy"}
-          </button>
+        <div className="connect-fit">
+          <ConnectPicker compact onTry={onTry} />
         </div>
         <ul className="promises">
           <li>
@@ -851,32 +1013,34 @@ function ConnectView() {
 function LimitView({ limit, setLimit }: { limit: number; setLimit: (n: number) => void }) {
   return (
     <div className="page">
-      <div className="page-inner narrow">
+      <div className="page-inner">
         <h2>Spending limit</h2>
         <p className="page-sub">The most your agent may ask you to pay at once. Anything above it is refused before it reaches you.</p>
-        <div className="limit">
-          <div className="limit-val">${limit}</div>
-          <input
-            type="range"
-            min={10}
-            max={300}
-            step={5}
-            value={limit}
-            onChange={(e) => setLimit(Number(e.target.value))}
-            aria-label="Spending limit in US dollars"
-          />
-          <div className="limit-scale">
-            <span>$10</span>
-            <span>$300</span>
+        <div className="limit-grid">
+          <div className="limit">
+            <span className="eyebrow">Per payment</span>
+            <div className="limit-val">${limit}</div>
+            <input
+              type="range"
+              min={10}
+              max={300}
+              step={5}
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value))}
+              aria-label="Spending limit in US dollars"
+            />
+            <div className="limit-scale">
+              <span>$10</span>
+              <span>$300</span>
+            </div>
           </div>
+          <ul className="promises">
+            <li>Your agent never pays by itself. Every payment waits for you in PayPal.</li>
+            <li>Prices come from the business, never from the AI.</li>
+            <li>A booking only exists once PayPal confirms the payment.</li>
+          </ul>
         </div>
-        <ul className="promises">
-          <li>Your agent never pays by itself. Every payment waits for you in PayPal.</li>
-          <li>Prices come from the business, never from the AI.</li>
-          <li>A booking only exists once PayPal confirms the payment.</li>
-        </ul>
       </div>
     </div>
   );
 }
-

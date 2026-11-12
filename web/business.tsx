@@ -1,12 +1,13 @@
 // The business owner's app (/business): sign up, set up what you sell, go
 // live, see bookings and the money PayPal holds and releases, refund or cancel.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Icon, Mark } from "./ui.tsx";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Onboarding, Welcome } from "./onboard.tsx";
+import { CountUp, Icon, Mark } from "./ui.tsx";
 
 type Kind = "appointment" | "pickup";
-type Item = { id?: string; kind: Kind; name: string; minutes: number | string; price: string; dailyLimit: number | string | null };
-type Hours = Record<number, [string, string] | null>;
-type Biz = {
+export type Item = { id?: string; kind: Kind; name: string; minutes: number | string; price: string; dailyLimit: number | string | null };
+export type Hours = Record<number, [string, string] | null>;
+export type Biz = {
   id: string;
   handle: string;
   name: string;
@@ -24,6 +25,7 @@ type Biz = {
   email: string;
   setupErrors: Record<string, string>;
   link: string;
+  demo?: boolean;
 };
 type Refund = { id: string; amount: string; by: string; status: string; createdAt: number };
 type Booking = {
@@ -57,12 +59,12 @@ type Page = "overview" | "bookings" | "setup";
 type Flow = "standard" | "multiparty";
 // How money moves, from the server: standard = paid to the business at capture;
 // multiparty = PayPal holds it, then releases it after the booking.
-let FLOW: Flow = "standard";
+export let FLOW: Flow = "standard";
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const ORDER = [1, 2, 3, 4, 5, 6, 0];
+export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const ORDER = [1, 2, 3, 4, 5, 6, 0];
 
-async function api<T>(url: string, method = "GET", body?: unknown): Promise<T> {
+export async function api<T>(url: string, method = "GET", body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -73,7 +75,7 @@ async function api<T>(url: string, method = "GET", body?: unknown): Promise<T> {
   if (!res.ok) throw Object.assign(new Error((json as { error?: string }).error ?? `Request failed (${res.status})`), { status: res.status, body: json });
   return json as T;
 }
-type ApiErr = Error & { body?: { fields?: Record<string, string>; rows?: Record<number, string> } };
+export type ApiErr = Error & { body?: { fields?: Record<string, string>; rows?: Record<number, string> } };
 
 const niceDate = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -88,6 +90,11 @@ export function BusinessApp() {
   const [selfServe, setSelfServe] = useState(false);
   const [page, setPage] = useState<Page>("overview");
   const [drawer, setDrawer] = useState(false);
+  // A self-serve business that is not live yet starts in the guided setup.
+  const [guided, setGuided] = useState(true);
+  // Once the guided setup is open it stays open until the owner leaves it, so going live
+  // shows its last step ("is live", the link) instead of jumping to the dashboard.
+  const inSetup = useRef(false);
 
   const load = useCallback(() => {
     api<{ business: Biz; cities: string[]; demoPayouts: boolean; selfServe: boolean; flow: Flow }>("/api/biz/me")
@@ -106,13 +113,22 @@ export function BusinessApp() {
   useEffect(() => {
     if (paypalNotice) history.replaceState(null, "", "/business");
   }, [paypalNotice]);
-  useEffect(() => {
-    if (me && selfServe && (me.status === "setup" || paypalNotice)) setPage("setup");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.id, selfServe]);
-
   if (me === undefined) return <div className="center-load"><span className="spin" /></div>;
-  if (me === null) return <DemoPicker onIn={(b) => { setMe(b); load(); }} />;
+  if (me === null) return <DemoPicker onIn={(b) => { setMe(b); setGuided(true); load(); }} />;
+  if (selfServe && !me.demo && guided && (me.status === "setup" || paypalNotice || inSetup.current)) {
+    inSetup.current = true;
+    return (
+      <Onboarding
+        me={me}
+        onSaved={setMe}
+        onExit={() => {
+          inSetup.current = false;
+          setGuided(false);
+          setPage("overview");
+        }}
+      />
+    );
+  }
 
   const go = (p: Page) => {
     setPage(p);
@@ -146,7 +162,7 @@ export function BusinessApp() {
           </button>
           {selfServe && (
             <button className={page === "setup" ? "on" : ""} onClick={() => go("setup")}>
-              <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" /> Setup
+              <Icon d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4" /> Settings
               {!ready && <span className="dot-warn" aria-label="Setup not finished" />}
             </button>
           )}
@@ -154,9 +170,9 @@ export function BusinessApp() {
         <div className="side-spacer" />
         <div className="side-foot">
           <span className="me biz-me">{me.name.slice(0, 1).toUpperCase()}</span>
-          <div>
+          <div className="side-who">
             <strong>{me.name}</strong>
-            <span>{selfServe ? me.email : `${me.city}, simulated business`}</span>
+            <span>{me.demo || !me.email ? `${me.city}, simulated business` : me.email}</span>
           </div>
           <button
             className="icon-btn show"
@@ -178,19 +194,21 @@ export function BusinessApp() {
           <button className="icon-btn menu" aria-label="Open menu" onClick={() => setDrawer(true)}>
             <Icon d="M4 7h16M4 12h16M4 17h16" />
           </button>
-          <span className="top-title">{page === "overview" ? "Overview" : page === "bookings" ? "Bookings" : "Setup"}</span>
-          <span className={`status-pill s-${me.status}`}>{me.status === "live" ? "Live" : me.status === "paused" ? "Paused" : "Not live yet"}</span>
-          {!selfServe ? null : me.status === "live" ? (
-            <button className="btn-line" onClick={() => setStatus("paused")}>
-              Pause
-            </button>
-          ) : (
-            <button className="btn-dark" disabled={!ready} onClick={() => setStatus("live")} title={ready ? "" : "Finish setup first"}>
-              {me.status === "paused" ? "Resume" : "Go live"}
-            </button>
-          )}
+          <h1 className="top-title">{page === "overview" ? "Overview" : page === "bookings" ? "Bookings" : "Settings"}</h1>
+          <div className="top-actions">
+            <span className={`status-pill s-${me.status}`}>{me.status === "live" ? "Live" : me.status === "paused" ? "Paused" : "Not live yet"}</span>
+            {!selfServe || me.demo ? null : me.status === "live" ? (
+              <button className="btn-line" onClick={() => setStatus("paused")}>
+                Pause
+              </button>
+            ) : (
+              <button className="btn-dark" disabled={!ready} onClick={() => setStatus("live")} title={ready ? "" : "Finish setup first"}>
+                {me.status === "paused" ? "Resume" : "Go live"}
+              </button>
+            )}
+          </div>
         </header>
-        {page === "overview" && <Overview me={me} demoPayouts={demoPayouts} openSetup={() => go("setup")} openBookings={() => go("bookings")} />}
+        {page === "overview" && <Overview me={me} demoPayouts={demoPayouts} openSetup={() => setGuided(true)} openBookings={() => go("bookings")} />}
         {page === "bookings" && <Bookings />}
         {page === "setup" && selfServe && <Setup me={me} cities={cities} onSaved={setMe} paypalNotice={paypalNotice} />}
       </main>
@@ -211,7 +229,7 @@ function DemoPicker({ onIn }: { onIn: (b: Biz) => void }) {
       .catch(() => setState({ signup: false, businesses: [] }));
   }, []);
   if (!state) return <div className="center-load"><span className="spin" /></div>;
-  if (state.signup) return <AuthScreen onIn={onIn} />;
+  if (state.signup) return <Welcome onIn={onIn} demos={state.businesses} />;
 
   const open = async (id: string) => {
     setBusy(id);
@@ -252,7 +270,7 @@ function DemoPicker({ onIn }: { onIn: (b: Biz) => void }) {
         </div>
         {msg && <p className="err">{msg}</p>}
         <p className="auth-switch">
-          <a className="linkish" href="/">
+          <a className="btn-ghost" href="/">
             Book as a customer
           </a>
         </p>
@@ -261,116 +279,7 @@ function DemoPicker({ onIn }: { onIn: (b: Biz) => void }) {
   );
 }
 
-// ---------- sign up / sign in (BUSINESS_SIGNUP=1) ----------
-function AuthScreen({ onIn }: { onIn: (b: Biz) => void }) {
-  const [mode, setMode] = useState<"signup" | "login">("signup");
-  const [cities, setCities] = useState<string[]>([]);
-  const [f, setF] = useState({ name: "", category: "", city: "", email: "", password: "" });
-  const [errs, setErrs] = useState<Record<string, string>>({});
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    // The city list is public; read it from a harmless endpoint.
-    fetch("/api/biz/cities").then((r) => r.json()).then((j) => setCities(j.cities ?? [])).catch(() => {});
-  }, []);
-
-  const missing =
-    mode === "signup"
-      ? !f.name.trim() || !f.category.trim() || !f.city || !f.email.trim() || f.password.length < 8
-      : !f.email.trim() || !f.password;
-
-  const submit = async () => {
-    setBusy(true);
-    setErrs({});
-    setMsg(null);
-    try {
-      const r = await api<{ business: Biz }>(`/api/biz/${mode}`, "POST", f);
-      onIn(r.business);
-    } catch (e) {
-      const body = (e as ApiErr).body;
-      if (body?.fields) setErrs(body.fields);
-      else setMsg((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const field = (k: keyof typeof f) => ({
-    value: f[k],
-    onChange: (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value }),
-  });
-
-  return (
-    <div className="auth">
-      <div className="auth-card">
-        <span className="brand">
-          <Mark /> Ordina <em className="for">Agent Checkout</em>
-        </span>
-        <h1>{mode === "signup" ? "Let AI agents book and pay you" : "Welcome back"}</h1>
-        <p className="auth-sub">
-          {mode === "signup"
-            ? "Your own AI Secretary answers customers' agents, takes bookings and orders, and gets you paid through PayPal."
-            : "Sign in to see your bookings and the money PayPal holds for you."}
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!missing) submit();
-          }}
-        >
-          {mode === "signup" && (
-            <>
-              <Field label="Business name" error={errs.name}>
-                <input {...field("name")} autoComplete="organization" placeholder="Lumen Hair Studio" />
-              </Field>
-              <Field label="What kind of business" error={errs.category}>
-                <input {...field("category")} placeholder="Hair salon, bakery, physio clinic" />
-              </Field>
-              <Field label="City" error={errs.city} hint="Sets your time zone.">
-                <select {...field("city")}>
-                  <option value="">Choose your city</option>
-                  {cities.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              </Field>
-            </>
-          )}
-          <Field label="Email" error={errs.email}>
-            <input {...field("email")} type="email" autoComplete="email" />
-          </Field>
-          <Field label="Password" error={errs.password} hint={mode === "signup" ? "At least 8 characters." : undefined}>
-            <input {...field("password")} type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} />
-          </Field>
-          {msg && <p className="err">{msg}</p>}
-          <button className="btn-dark wide" disabled={missing || busy}>
-            {busy ? "One moment" : mode === "signup" ? "Create my business" : "Sign in"}
-          </button>
-        </form>
-        <p className="auth-switch">
-          {mode === "signup" ? "Already have an account? " : "New to Ordina? "}
-          <button
-            className="linkish"
-            onClick={() => {
-              setMode(mode === "signup" ? "login" : "signup");
-              setErrs({});
-              setMsg(null);
-            }}
-          >
-            {mode === "signup" ? "Sign in" : "Create a business"}
-          </button>
-        </p>
-        <p className="auth-switch">
-          <a className="linkish" href="/">
-            I'm a customer
-          </a>
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: ReactNode }) {
+export function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: ReactNode }) {
   return (
     <label className={`field ${error ? "has-err" : ""}`}>
       <span className="field-label">{label}</span>
@@ -404,36 +313,43 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
 
   return (
     <div className="page">
-      <div className="page-inner wide">
+      <div className="page-inner">
         {!ready && (
-          <button className="banner" onClick={openSetup}>
-            <strong>Finish setup to go live.</strong> {Object.keys(me.setupErrors).length} thing
-            {Object.keys(me.setupErrors).length === 1 ? "" : "s"} left. Customers' agents can't find you until then.
-            <Icon d="M9 6l6 6-6 6" />
-          </button>
+          <div className="banner" role="status">
+            <Icon d="M12 8v5M12 16.4v.1M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" />
+            <p>
+              <strong>Finish setup to go live.</strong> {Object.keys(me.setupErrors).length} thing
+              {Object.keys(me.setupErrors).length === 1 ? "" : "s"} left. Customers' agents cannot find you until then.
+            </p>
+            <button className="btn-dark sm" onClick={openSetup}>
+              Finish setup
+            </button>
+          </div>
         )}
-        <h2>{me.name}</h2>
-        <p className="page-sub">
-          {me.status === "live"
-            ? "Your Secretary is taking bookings from customers' AI agents."
-            : me.status === "paused"
-              ? "Paused. Customers' agents can't find or book you."
-              : "Not live yet."}
-        </p>
+        <header className="greet">
+          <h2>{me.name}</h2>
+          <p>
+            {me.status === "live"
+              ? "Your Secretary is taking bookings from customers' AI agents."
+              : me.status === "paused"
+                ? "Paused. Customers' agents cannot find or book you."
+                : "Not live yet."}
+          </p>
+        </header>
 
         {FLOW === "standard" ? (
           <div className="stats">
-            <Stat label="Sales" value={usd(data?.totals.sales)} />
-            <Stat label="Paid to your PayPal" value={usd(data?.totals.released)} hint="After PayPal's fees and refunds" />
-            <Stat label="PayPal fees" value={usd(data?.totals.fees)} />
-            <Stat label="Refunded" value={usd(data?.totals.refunded)} />
+            <Stat label="Sales" value={data?.totals.sales} />
+            <Stat label="Paid to your PayPal" value={data?.totals.released} hint="After PayPal's fees and refunds" />
+            <Stat label="PayPal fees" value={data?.totals.fees} />
+            <Stat label="Refunded" value={data?.totals.refunded} />
           </div>
         ) : (
           <div className="stats">
-            <Stat label="Sales" value={usd(data?.totals.sales)} />
-            <Stat label="Held by PayPal for you" value={usd(data?.totals.held)} hint="Released 24 hours after each booking" />
-            <Stat label="Released to your PayPal" value={usd(data?.totals.released)} hint={me.paypal.email ?? "Connect PayPal"} />
-            <Stat label="Refunded" value={usd(data?.totals.refunded)} />
+            <Stat label="Sales" value={data?.totals.sales} />
+            <Stat label="Held by PayPal for you" value={data?.totals.held} hint="Released 24 hours after each booking" />
+            <Stat label="Released to your PayPal" value={data?.totals.released} hint={me.paypal.email ?? "Connect PayPal"} />
+            <Stat label="Refunded" value={data?.totals.refunded} />
           </div>
         )}
         <p className="fine">
@@ -447,33 +363,47 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
           <section className="card">
             <div className="card-head">
               <h3>Coming up</h3>
-              <button className="linkish" onClick={openBookings}>
+              <button className="btn-line sm" onClick={openBookings}>
                 All bookings
               </button>
             </div>
-            {upcoming.length === 0 && <p className="muted-s">Nothing coming up yet. Bookings appear the moment PayPal confirms the payment.</p>}
-            {upcoming.map((b) => (
-              <div key={b.id} className="mini">
-                <div>
-                  <strong>{b.serviceName}</strong>
-                  <span>
-                    {b.customerName} · {niceDate(b.date)}, {b.time}
-                  </span>
-                </div>
-                <span className="mini-amt">{usd(b.amount)}</span>
+            {upcoming.length === 0 ? (
+              <div className="empty">
+                <Icon d="M7 3v3M17 3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" />
+                <strong>Nothing coming up yet</strong>
+                <p>Bookings appear the moment PayPal confirms the payment.</p>
               </div>
-            ))}
+            ) : (
+              <div className="mini-list">
+                <div className="mini mini-head" aria-hidden>
+                  <span>Booking</span>
+                  <span>When</span>
+                  <span>Paid</span>
+                </div>
+                {upcoming.map((b) => (
+                  <div key={b.id} className="mini">
+                    <div className="mini-what">
+                      <strong>{b.serviceName}</strong>
+                      <span>{b.customerName}</span>
+                    </div>
+                    <span className="mini-when num">
+                      {niceDate(b.date)}, {b.time}
+                    </span>
+                    <span className="mini-amt num">{usd(b.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="card">
             <div className="card-head">
               <h3>Your link</h3>
             </div>
-            <p className="muted-s">Share it on Instagram, WhatsApp or your website. It opens a customer's agent already talking to your Secretary.</p>
             <div className="linkbox">
               <code>{link}</code>
               <button
-                className="btn-line"
+                className="btn-line sm"
                 disabled={me.status !== "live"}
                 onClick={() => {
                   navigator.clipboard.writeText(link).then(() => {
@@ -485,10 +415,11 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
-            {me.status !== "live" && <p className="fine">Works once you're live.</p>}
+            <p className="muted-s">Share it on Instagram, WhatsApp or your website. It opens a customer's agent already talking to your Secretary.</p>
+            {me.status !== "live" && <p className="field-hint">Works once you are live.</p>}
             {me.status === "live" && (
-              <a className="linkish" href={me.link} target="_blank" rel="noreferrer">
-                Try it as a customer
+              <a className="btn-line try" href={me.link} target="_blank" rel="noreferrer">
+                Try it as a customer <Icon d="M9 6h9v9M18 6L7 17" />
               </a>
             )}
           </section>
@@ -496,12 +427,12 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
 
         {demoPayouts && FLOW === "multiparty" && (
           <section className="card demo">
-            <div className="card-head">
+            <div className="demo-text">
               <h3>Release held money, test mode</h3>
+              <p className="muted-s">
+                PayPal normally releases each payment to you 24 hours after the booking. In test mode you can release everything held now.
+              </p>
             </div>
-            <p className="muted-s">
-              PayPal normally releases each payment to you 24 hours after the booking. In test mode you can release everything held now.
-            </p>
             <button
               className="btn-line"
               disabled={running || !Number(data?.totals.held)}
@@ -521,11 +452,13 @@ function Overview({ me, demoPayouts, openSetup, openBookings }: { me: Biz; demoP
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Stat({ label, value, hint }: { label: string; value: string | null | undefined; hint?: string }) {
   return (
     <div className="stat">
-      <span className="stat-label">{label}</span>
-      <strong>{value}</strong>
+      <span className="eyebrow">{label}</span>
+      <strong>
+        <CountUp value={value} />
+      </strong>
       {hint && <span className="stat-hint">{hint}</span>}
     </div>
   );
@@ -551,22 +484,61 @@ function Bookings() {
     return all.filter((b) => b.status === "confirmed" && b.startsAt < now);
   }, [data, tab, now]);
 
+  const counts = useMemo(() => {
+    const all = data?.bookings ?? [];
+    return {
+      upcoming: all.filter((b) => b.status === "confirmed" && b.startsAt >= now).length,
+      past: all.filter((b) => b.status === "confirmed" && b.startsAt < now).length,
+      cancelled: all.filter((b) => b.status === "cancelled").length,
+    };
+  }, [data, now]);
+
   return (
     <div className="page">
-      <div className="page-inner wide">
-        <h2>Bookings</h2>
-        <p className="page-sub">Everything customers' agents booked and paid for. You can refund any amount for 180 days after payment.</p>
-        <div className="tabs">
-          {(["upcoming", "past", "cancelled"] as const).map((t) => (
-            <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
-              {t === "upcoming" ? "Upcoming" : t === "past" ? "Past" : "Cancelled"}
-            </button>
-          ))}
+      <div className="page-inner">
+        <div className="bk-bar">
+          <div className="tabs" role="tablist" aria-label="Bookings">
+            {(["upcoming", "past", "cancelled"] as const).map((t) => (
+              <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+                {t === "upcoming" ? "Upcoming" : t === "past" ? "Past" : "Cancelled"}
+                {data && <span className="count">{counts[t]}</span>}
+              </button>
+            ))}
+          </div>
+          <p className="bk-sub">Everything customers' agents booked and paid for. You can refund any amount for 180 days after payment.</p>
         </div>
-        {data && list.length === 0 && <div className="blank"><p>Nothing here.</p></div>}
-        {list.map((b) => (
-          <BookingRow key={b.id} b={b} onChange={load} />
-        ))}
+        <section className="card table" aria-label="Bookings">
+          <div className="thead" aria-hidden>
+            <span>Booking</span>
+            <span>Customer</span>
+            <span className="r">Paid</span>
+            <span className="r">Fee</span>
+            <span className="r">You keep</span>
+            <span>Status</span>
+            <span />
+          </div>
+          {!data && (
+            <div className="empty">
+              <span className="spin" />
+            </div>
+          )}
+          {data && list.length === 0 && (
+            <div className="empty">
+              <Icon d="M7 3v3M17 3v3M4 9h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" />
+              <strong>{tab === "upcoming" ? "No upcoming bookings" : tab === "past" ? "No past bookings" : "No cancelled bookings"}</strong>
+              <p>
+                {tab === "upcoming"
+                  ? "Bookings appear the moment PayPal confirms the payment."
+                  : tab === "past"
+                    ? "Bookings move here once their time has passed."
+                    : "Bookings that you or the customer cancel are listed here."}
+              </p>
+            </div>
+          )}
+          {list.map((b) => (
+            <BookingRow key={b.id} b={b} onChange={load} />
+          ))}
+        </section>
       </div>
     </div>
   );
@@ -602,49 +574,70 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
   const amountMissing = mode === "refund" ? !amount.trim() || Number(amount) <= 0 : amount.trim() === "";
   const amountTooBig = Number(amount) > Number(b.refundable);
 
+  const payoutText = FLOW === "standard" && b.releaseStatus === "released" ? "Paid to your PayPal" : RELEASE_TEXT[b.releaseStatus];
+  const payoutTone = b.releaseStatus === "released" ? "ok" : b.releaseStatus === "failed" ? "bad" : "";
+
   return (
-    <div className={`brow ${b.status === "cancelled" ? "is-past" : ""}`}>
-      <div className="brow-main">
-        <div className="brow-top">
-          <strong>{b.serviceName}</strong>
-          <span className={`kind k-${b.kind}`}>{b.kind === "pickup" ? "Pickup" : "Appointment"}</span>
-        </div>
-        <span>
-          {niceDate(b.date)} at {b.time} · {b.customerName}
-          {b.payerEmail ? ` · ${b.payerEmail}` : ""}
-        </span>
-        <span className="brow-fine">
-          Ref {b.ref} · Paid {usd(b.amount)} · PayPal fee {usd(b.paypalFee)}
-          {Number(b.platformFee) > 0 ? ` · Ordina fee ${usd(b.platformFee)}` : ""}
-          {Number(b.refunded) > 0 ? ` · Refunded ${usd(b.refunded)}` : ""}
-          {b.status === "cancelled" ? ` · Cancelled by ${b.cancelledBy === "business" ? "you" : "the customer"}` : ""}
-        </span>
-      </div>
-      <div className="brow-side">
-        <span className="brow-amt">{usd(b.businessGets)}</span>
-        <span className={`payout p-${b.releaseStatus}`}>
-          {b.releaseStatus === "held"
-            ? `Held by PayPal, released ${when(b.releaseDueAt)}`
-            : FLOW === "standard" && b.releaseStatus === "released"
-              ? "Paid to your PayPal"
-              : RELEASE_TEXT[b.releaseStatus]}
-        </span>
-        {b.releaseNote && <span className="brow-note">{b.releaseNote}</span>}
-        {!mode && canMoney && (
-          <div className="brow-actions">
-            <button className="btn-line sm" onClick={() => open("refund")}>
-              Refund
-            </button>
-            {b.status === "confirmed" && (
-              <button className="btn-line sm" onClick={() => open("cancel")}>
-                Cancel
-              </button>
-            )}
+    <div className={`brow ${b.status === "cancelled" ? "is-past" : ""} ${mode ? "is-open" : ""}`}>
+      <div className="brow-grid">
+        <div className="c-book">
+          <div className="brow-top">
+            <strong>{b.serviceName}</strong>
+            <span className={`kind k-${b.kind}`}>{b.kind === "pickup" ? "Pickup" : "Appointment"}</span>
           </div>
-        )}
-        {!mode && !canMoney && Number(b.refunded) < Number(b.amount) && b.releaseStatus !== "releasing" && (
-          <span className="brow-note">PayPal refunds close 180 days after payment. Settle anything later directly with the customer.</span>
-        )}
+          <span className="brow-when num">
+            {niceDate(b.date)}, {b.time}
+          </span>
+          <span className="brow-ref num">Ref {b.ref}</span>
+        </div>
+        <div className="c-cust">
+          <strong>{b.customerName}</strong>
+          {b.payerEmail && <span>{b.payerEmail}</span>}
+        </div>
+        <div className="c-money c-paid" data-label="Paid">
+          <span className="num">{usd(b.amount)}</span>
+          {Number(b.refunded) > 0 && <small>Refunded {usd(b.refunded)}</small>}
+        </div>
+        <div className="c-money c-fee" data-label="PayPal fee">
+          <span className="num">{usd(b.paypalFee)}</span>
+          {Number(b.platformFee) > 0 && <small>Ordina fee {usd(b.platformFee)}</small>}
+        </div>
+        <div className="c-money c-keep" data-label="You keep">
+          <span className="num">{usd(b.businessGets)}</span>
+        </div>
+        <div className="c-status">
+          {b.status === "cancelled" ? (
+            <>
+              <span className="badge bad">Cancelled</span>
+              <span className="brow-note">
+                By {b.cancelledBy === "business" ? "you" : "the customer"}. {payoutText}.
+              </span>
+            </>
+          ) : (
+            <>
+              <span className={`badge ${payoutTone}`}>{payoutText}</span>
+              {b.releaseStatus === "held" && <span className="brow-note num">Released {when(b.releaseDueAt)}</span>}
+            </>
+          )}
+          {b.releaseNote && <span className="brow-note">{b.releaseNote}</span>}
+          {!mode && !canMoney && Number(b.refunded) < Number(b.amount) && b.releaseStatus !== "releasing" && (
+            <span className="brow-note">PayPal refunds close 180 days after payment. Settle anything later directly with the customer.</span>
+          )}
+        </div>
+        <div className="c-act">
+          {!mode && canMoney && (
+            <>
+              <button className="btn-line sm" onClick={() => open("refund")}>
+                Refund
+              </button>
+              {b.status === "confirmed" && (
+                <button className="btn-line sm" onClick={() => open("cancel")}>
+                  Cancel
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
       {mode && (
         <div className="brow-form">
@@ -676,7 +669,12 @@ function BookingRow({ b, onChange }: { b: Booking; onChange: () => void }) {
           </div>
         </div>
       )}
-      {msg && <p className={`brow-msg ${msg.bad ? "bad" : ""}`}>{msg.text}</p>}
+      {msg && (
+        <p className={`brow-msg ${msg.bad ? "bad" : ""}`} role="status">
+          {!msg.bad && <Icon d="M5 12l4 4L19 6" />}
+          {msg.text}
+        </p>
+      )}
     </div>
   );
 }
@@ -693,24 +691,31 @@ function Setup({ me, cities, onSaved, paypalNotice }: { me: Biz; cities: string[
   return (
     <div className="page">
       <div className="page-inner">
-        <h2>Setup</h2>
-        <p className="page-sub">Your Secretary learns everything here. Prices always come from this list, never from the AI.</p>
-        <div className="checklist">
-          {checks.map((c) => (
-            <a key={c.key} href={`#${c.key}`} className={errs[c.key] ? "" : "done"}>
-              <span className="tick" aria-hidden>
-                {!errs[c.key] && <Icon d="M5 12l4 4L19 6" />}
-              </span>
-              {c.label}
-            </a>
-          ))}
+        <div className="set-intro">
+          <p>Your Secretary learns everything here. Prices always come from this list, never from the AI.</p>
+          <div className="checklist">
+            {checks.map((c) => (
+              <a key={c.key} href={`#${c.key}`} className={`badge ${errs[c.key] ? "warn" : "ok done"}`}>
+                <span className="tick" aria-hidden>
+                  {!errs[c.key] && <Icon d="M5 12l4 4L19 6" />}
+                </span>
+                {c.label}
+              </a>
+            ))}
+          </div>
         </div>
-        <ProfileSection me={me} cities={cities} onSaved={onSaved} />
-        <ItemsSection me={me} onSaved={onSaved} />
-        <HoursSection me={me} onSaved={onSaved} />
-        <CancelSection me={me} onSaved={onSaved} />
-        <PaySection me={me} onSaved={onSaved} notice={paypalNotice} />
-        <NotesSection me={me} onSaved={onSaved} />
+        <div className="set-grid">
+          <div className="set-col">
+            <ProfileSection me={me} cities={cities} onSaved={onSaved} />
+            <HoursSection me={me} onSaved={onSaved} />
+            <NotesSection me={me} onSaved={onSaved} />
+          </div>
+          <div className="set-col">
+            <ItemsSection me={me} onSaved={onSaved} />
+            <CancelSection me={me} onSaved={onSaved} />
+            <PaySection me={me} onSaved={onSaved} notice={paypalNotice} />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -758,7 +763,11 @@ function Section({ id, title, sub, need, children }: { id: string; title: string
 function SaveBar({ disabled, busy, done, label = "Save" }: { disabled: boolean; busy: boolean; done: boolean; label?: string }) {
   return (
     <div className="savebar">
-      {done && <span className="saved">Saved</span>}
+      {done && (
+        <span className="saved" role="status">
+          <Icon d="M5 12l4 4L19 6" /> Saved
+        </span>
+      )}
       <button className="btn-dark" disabled={disabled || busy}>
         {busy ? "Saving" : label}
       </button>
@@ -796,7 +805,7 @@ function ProfileSection({ me, cities, onSaved }: { me: Biz; cities: string[]; on
             ))}
           </select>
         </Field>
-        <Field label="About (optional)" hint="One or two sentences, for example where you are and what you're known for.">
+        <Field label="About (optional)" hint="One or two sentences, for example where you are and what you are known for.">
           <textarea rows={2} value={f.about} maxLength={500} onChange={(e) => setF({ ...f, about: e.target.value })} />
         </Field>
         <SaveBar disabled={!changed || Object.keys(local).length > 0} busy={s.busy} done={s.done} />
@@ -836,12 +845,17 @@ function ItemsSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) {
       >
         {items.map((it, i) => (
           <div className="item-row" key={it.id ?? `new-${i}`}>
-            <div className="seg-mini" role="radiogroup" aria-label="Kind">
-              {(["appointment", "pickup"] as const).map((k) => (
-                <button type="button" key={k} className={it.kind === k ? "on" : ""} onClick={() => set(i, { kind: k })} aria-pressed={it.kind === k}>
-                  {k === "appointment" ? "Appointment" : "Pickup item"}
-                </button>
-              ))}
+            <div className="item-top">
+              <div className="seg-mini" role="radiogroup" aria-label="Kind">
+                {(["appointment", "pickup"] as const).map((k) => (
+                  <button type="button" key={k} className={it.kind === k ? "on" : ""} onClick={() => set(i, { kind: k })} aria-pressed={it.kind === k}>
+                    {k === "appointment" ? "Appointment" : "Pickup item"}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="icon-btn show rm" aria-label="Remove" title="Remove" onClick={() => setItems(items.filter((_, n) => n !== i))}>
+                <Icon d="M6 6l12 12M18 6L6 18" />
+              </button>
             </div>
             <div className="item-fields">
               <label className="field">
@@ -866,9 +880,6 @@ function ItemsSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) {
                   <input value={it.dailyLimit ?? ""} onChange={(e) => set(i, { dailyLimit: e.target.value })} inputMode="numeric" placeholder="No limit" />
                 </label>
               )}
-              <button type="button" className="icon-btn show rm" aria-label="Remove" onClick={() => setItems(items.filter((_, n) => n !== i))}>
-                <Icon d="M6 6l12 12M18 6L6 18" />
-              </button>
             </div>
             {(s.rows[i] ?? (it.name || it.price ? rowErr(it) : undefined)) && <span className="field-err">{s.rows[i] ?? rowErr(it)}</span>}
           </div>
@@ -938,7 +949,7 @@ function CancelSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) 
     <Section
       id="cancelHours"
       title="Cancellations"
-      sub="Customers can cancel for a full refund up to this many hours before. After that, it's your call: you can still refund any amount, for up to 180 days after payment."
+      sub="Customers can cancel for a full refund up to this many hours before. After that, it is your call: you can still refund any amount, for up to 180 days after payment."
       need={me.setupErrors.cancelHours}
     >
       <form
@@ -956,7 +967,7 @@ function CancelSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) 
   );
 }
 
-function PaySection({ me, onSaved, notice }: { me: Biz; onSaved: (b: Biz) => void; notice: string | null }) {
+export function PaySection({ me, onSaved, notice }: { me: Biz; onSaved: (b: Biz) => void; notice: string | null }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const p = me.paypal;
@@ -1018,7 +1029,7 @@ function PaySection({ me, onSaved, notice }: { me: Biz; onSaved: (b: Biz) => voi
             <b>P</b>
           </span>
           <div>
-            <strong>Connected, but PayPal can't pay you yet</strong>
+            <strong>Connected, but PayPal cannot pay you yet</strong>
             <span>{me.setupErrors.paypal}</span>
           </div>
           <button className="btn-dark sm" onClick={checkAgain} disabled={busy}>
@@ -1032,7 +1043,7 @@ function PaySection({ me, onSaved, notice }: { me: Biz; onSaved: (b: Biz) => voi
           </span>
           <div>
             <strong>Not connected</strong>
-            <span>You'll sign in to PayPal (or create a free business account) and allow Ordina to take payments for you.</span>
+            <span>You will sign in to PayPal (or create a free business account) and allow Ordina to take payments for you.</span>
           </div>
           <button className="pp-connect" onClick={connect} disabled={busy}>
             {busy ? "Opening PayPal" : "Connect PayPal"}
@@ -1055,7 +1066,7 @@ function NotesSection({ me, onSaved }: { me: Biz; onSaved: (b: Biz) => void }) {
           s.save("/api/biz/profile", { notes: v });
         }}
       >
-        <textarea rows={3} value={v} maxLength={2000} onChange={(e) => setV(e.target.value)} placeholder="Parking is at the back. We don't do children's cuts." />
+        <textarea rows={3} value={v} maxLength={2000} onChange={(e) => setV(e.target.value)} placeholder="Parking is at the back. We do not do children's cuts." />
         <SaveBar disabled={v === me.notes} busy={s.busy} done={s.done} />
       </form>
     </Section>

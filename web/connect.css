@@ -1,0 +1,897 @@
+/* The front door (/): a night hero with the handshake, the assistant picker (the page's job),
+   the safety strip, the business band and a small footer. The picker is also shown compact
+   inside the playground. Tokens, buttons, badges, the brand and motion come from system.css.
+   Every class here starts with cx-. */
+
+.cx {
+  --on: rgba(255, 255, 255, 0.98);
+  --on-soft: rgba(255, 255, 255, 0.74);
+  --on-mute: rgba(255, 255, 255, 0.56);
+  --sec-y: clamp(64px, 9vw, 128px);
+  --cx-gap: clamp(16px, 2.2vw, 40px);
+  min-height: 100%;
+  background: var(--bg);
+}
+.cx h2,
+.cx h3,
+.cx h4,
+.cx-picker h3,
+.cx-picker h4 {
+  margin: 0;
+}
+.cx .on-night :focus-visible {
+  outline-color: var(--teal-400);
+}
+
+/* ---------- 1. the night hero ---------- */
+.cx-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: min(100vh, 900px);
+  padding: 0 var(--gutter);
+  background: var(--night);
+  color: var(--on);
+  overflow: hidden;
+}
+/* a hairline grid that only shows behind the stage, and one soft glow under it */
+.cx-hero::before,
+.cx-hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+.cx-hero::before {
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 64px 64px;
+  background-position: right var(--gutter) top 0;
+  -webkit-mask-image: radial-gradient(62% 72% at 72% 52%, rgba(0, 0, 0, 1), transparent 76%);
+  mask-image: radial-gradient(62% 72% at 72% 52%, rgba(0, 0, 0, 1), transparent 76%);
+}
+.cx-hero::after {
+  top: 50%;
+  right: -8%;
+  width: 78%;
+  aspect-ratio: 1.25;
+  transform: translateY(-46%);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--teal-400) 15%, transparent), transparent);
+}
+
+.cx-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+}
+.cx-brand {
+  color: var(--on);
+  border-radius: var(--r);
+}
+.cx-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 2.4vw, 32px);
+}
+.cx-nav a {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--on-soft);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: color 0.16s;
+}
+.cx-nav a:hover {
+  color: var(--on);
+}
+
+.cx-hero-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--cx-gap);
+  align-items: center;
+  padding: clamp(20px, 3vh, 40px) 0 clamp(48px, 9vh, 104px);
+}
+.cx-pitch {
+  grid-column: span 5;
+  min-width: 0;
+}
+/* the stage keeps the room the handshake needs at its tallest, so the page never jumps while it plays */
+.cx-stage {
+  grid-column: span 7;
+  align-self: start;
+  justify-self: end;
+  display: grid;
+  width: 100%;
+  max-width: 760px;
+  min-width: 0;
+  min-height: 680px;
+}
+.cx-pitch .eyebrow {
+  color: var(--teal-400);
+}
+.cx-pitch h1 {
+  margin-top: clamp(18px, 1.8vw, 28px);
+  font-family: var(--display);
+  font-size: clamp(40px, 5.4vw, 84px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  color: var(--on);
+}
+.cx-pitch h1 span {
+  display: block;
+  text-wrap: balance;
+}
+.cx-pitch h1 .cx-h1-b {
+  color: var(--teal-400);
+}
+.cx-sub {
+  margin-top: clamp(22px, 2.2vw, 34px);
+  max-width: 46ch;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--on-soft);
+  text-wrap: pretty;
+}
+.cx-cta {
+  margin-top: clamp(28px, 2.8vw, 40px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 26px;
+}
+.cx-cta .btn-night,
+.cx-band .btn-night {
+  padding: 13px 20px;
+  font-size: 15px;
+}
+.cx-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--on);
+  text-decoration: none;
+  border-radius: 4px;
+}
+.cx-quiet .ic {
+  width: 16px;
+  height: 16px;
+  color: var(--teal-400);
+  transition: transform 0.2s var(--ease);
+}
+.cx-quiet:hover .ic {
+  transform: translateX(3px);
+}
+.cx-sandbox {
+  margin-top: clamp(24px, 2.4vw, 36px);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: var(--on-mute);
+}
+
+/* ---------- sections ---------- */
+.cx-sec {
+  padding: var(--sec-y) var(--gutter);
+}
+.cx-connect {
+  background: var(--bg);
+}
+.cx-connect:focus {
+  outline: none;
+}
+
+/* ---------- 2. the picker (also compact, inside the playground) ---------- */
+.cx-picker {
+  --cx-gap: clamp(16px, 2.2vw, 40px);
+  container: cx-picker / inline-size;
+}
+.cx-head {
+  display: grid;
+  gap: 12px var(--cx-gap);
+}
+.cx-head-t {
+  display: grid;
+  gap: 14px;
+}
+.cx-head h2,
+.cx-sec-h h2 {
+  font-family: var(--display);
+  font-size: clamp(28px, 3.1vw, 46px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.cx-head-sub {
+  max-width: 52ch;
+  font-size: 17px;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.cx-cols {
+  margin-top: clamp(24px, 3vw, 44px);
+  display: grid;
+  gap: 16px var(--cx-gap);
+}
+
+/* the assistants: tiles on phones and in the playground, rows beside the panel on a desk */
+.cx-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+.cx-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.cx-tile:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.cx-tile:hover {
+  border-color: var(--line-2);
+  background: var(--canvas);
+}
+.cx-tile[aria-pressed="true"] {
+  border-color: var(--teal-700);
+  background: var(--teal-50);
+}
+.cx-av {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r);
+  display: grid;
+  place-items: center;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.cx-tile:hover .cx-av {
+  background: var(--bg);
+}
+.cx-tile[aria-pressed="true"] .cx-av,
+.cx-panel-h .cx-av {
+  background: var(--teal-700);
+  border-color: var(--teal-700);
+  color: var(--bg);
+}
+.cx-tile-t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+.cx-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+.cx-tag {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.cx-tile.soon .cx-tag {
+  color: var(--faint);
+}
+.cx-tile[aria-pressed="true"] .cx-tag {
+  color: var(--teal-700);
+}
+.cx-chev {
+  display: none;
+  width: 16px;
+  height: 16px;
+  color: var(--faint);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 0.15s,
+    transform 0.2s var(--ease);
+}
+
+/* the detail panel */
+.cx-panel {
+  container: cx-panel / inline-size;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--bg);
+  scroll-margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  animation: cx-in 0.32s var(--ease) both;
+}
+.cx-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.cx-split {
+  flex: 1;
+}
+@keyframes cx-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cx-panel-h {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.cx-panel-h h3 {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.cx-block {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: 20px;
+}
+.cx-card > * + *,
+.cx-split > * + * {
+  border-top: 1px solid var(--line);
+}
+.cx-label {
+  display: block;
+  margin-bottom: 10px;
+}
+.cx-lead {
+  max-width: 62ch;
+  font-size: 15.5px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* things you copy look the same: canvas ground, hairline, the button at the right */
+.cx-addr,
+.cx-example {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--canvas);
+}
+.cx-addr code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.cx-example {
+  align-items: flex-start;
+  border-color: var(--line);
+}
+.cx-example p {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.cx-copy {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 80px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.cx-copy .ic {
+  width: 14px;
+  height: 14px;
+}
+.cx-copy:hover {
+  background: var(--hover);
+  border-color: var(--faint);
+}
+.cx-copy.done {
+  color: var(--teal-700);
+  border-color: var(--teal-100);
+  background: var(--teal-50);
+}
+.cx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cx-actions .btn-dark {
+  min-height: 42px;
+  padding-inline: 18px;
+}
+.cx-actions .ic {
+  width: 16px;
+  height: 16px;
+}
+
+.cx-steps-t {
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cx-steps ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: cx;
+}
+.cx-steps li {
+  counter-increment: cx;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: baseline;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.cx-steps li:last-child {
+  padding-bottom: 0;
+}
+.cx-steps li::before {
+  content: counter(cx, decimal-leading-zero);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--teal-700);
+}
+.cx-note {
+  padding-left: 12px;
+  border-left: 2px solid var(--teal-100);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.cx-ask ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* wider columns */
+@container cx-picker (min-width: 560px) {
+  .cx-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cx-tile,
+  .cx-tile:last-child:nth-child(odd) {
+    grid-column: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+  }
+  .cx-tile-t {
+    flex: 1;
+  }
+  .cx-tag {
+    font-size: 11px;
+  }
+}
+@container cx-panel (min-width: 520px) {
+  .cx-connect-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+  }
+}
+@container cx-panel (min-width: 680px) {
+  .cx-split {
+    display: grid;
+    grid-template-columns: minmax(0, 11fr) minmax(0, 10fr);
+  }
+  .cx-split > * + * {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+  .cx-block {
+    padding: 22px 24px;
+  }
+  .cx-panel-h {
+    padding: 16px 24px;
+  }
+}
+/* a desk: the list on the left, the panel stays in view on the right */
+@container cx-picker (min-width: 920px) {
+  .cx-picker:not(.compact) .cx-head,
+  .cx-picker:not(.compact) .cx-cols {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .cx-picker:not(.compact) .cx-head-t,
+  .cx-picker:not(.compact) .cx-grid {
+    grid-column: span 5;
+  }
+  .cx-picker:not(.compact) .cx-head-sub,
+  .cx-picker:not(.compact) .cx-panel {
+    grid-column: span 7;
+  }
+  .cx-picker:not(.compact) .cx-head-sub {
+    align-self: end;
+    padding-bottom: 0.3em;
+  }
+  .cx-picker:not(.compact) .cx-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .cx-picker:not(.compact) .cx-tile {
+    min-height: 52px;
+    padding: 9px 12px 9px 10px;
+  }
+  .cx-picker:not(.compact) .cx-tile-t {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .cx-picker:not(.compact) .cx-tag {
+    text-align: right;
+  }
+  .cx-picker:not(.compact) .cx-chev {
+    display: block;
+  }
+  .cx-picker:not(.compact) .cx-tile:hover .cx-chev,
+  .cx-picker:not(.compact) .cx-tile[aria-pressed="true"] .cx-chev {
+    opacity: 1;
+    transform: none;
+  }
+  .cx-picker:not(.compact) .cx-tile[aria-pressed="true"] .cx-chev {
+    color: var(--teal-700);
+  }
+  /* the panel is as tall as the list, and stays in view if the list ever outgrows it */
+  .cx-picker:not(.compact) .cx-panel {
+    position: sticky;
+    top: 24px;
+    align-self: stretch;
+  }
+}
+
+/* compact: inside the playground's "Use in your assistant" */
+.cx-picker.compact {
+  margin-top: 24px;
+}
+.cx-picker.compact .cx-head h2 {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+.cx-picker.compact .cx-cols {
+  margin-top: 14px;
+}
+.cx-picker.compact .cx-panel-h h3 {
+  font-size: 17px;
+}
+.cx-picker.compact .cx-panel-h,
+.cx-picker.compact .cx-block {
+  padding-inline: 18px;
+}
+
+/* ---------- 3. the safety strip ---------- */
+.cx-safety {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--cx-gap);
+  align-items: end;
+  background: var(--canvas);
+}
+.cx-safety .cx-rules {
+  grid-column: 1 / -1;
+}
+.cx-safety .cx-more {
+  grid-area: 1 / 2;
+  margin: 0;
+  padding-bottom: 0.45em;
+}
+.cx-sec-h {
+  display: grid;
+  gap: 14px;
+}
+.cx-sec-h h2 {
+  max-width: 18ch;
+}
+.cx-rules {
+  margin: clamp(32px, 4vw, 64px) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 var(--cx-gap);
+}
+.cx-rules li {
+  padding-top: 18px;
+  border-top: 1px solid var(--teal-900);
+}
+.cx-rules .eyebrow {
+  color: var(--teal-700);
+}
+.cx-rules p {
+  margin-top: clamp(14px, 1.6vw, 24px);
+  max-width: 32ch;
+  font-size: clamp(17px, 1.45vw, 22px);
+  font-weight: 500;
+  line-height: 1.38;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.cx-more {
+  margin-top: clamp(28px, 3.4vw, 52px);
+  font-size: 15px;
+}
+
+/* ---------- 4. the business band ---------- */
+.cx-band {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--cx-gap);
+  align-items: end;
+  padding: clamp(56px, 7.5vw, 112px) var(--gutter);
+  background: var(--teal-900);
+  color: var(--on);
+}
+.cx-band-l {
+  grid-column: span 7;
+  display: grid;
+  gap: 16px;
+}
+.cx-band-r {
+  grid-column: span 5;
+}
+.cx-band .eyebrow {
+  color: var(--teal-400);
+}
+.cx-band h2 {
+  font-family: var(--display);
+  font-size: clamp(30px, 3.3vw, 56px);
+  font-weight: 500;
+  line-height: 1.04;
+  letter-spacing: -0.032em;
+}
+.cx-band h2 span {
+  display: block;
+  text-wrap: balance;
+}
+.cx-band p {
+  max-width: 46ch;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--on-soft);
+  text-wrap: pretty;
+}
+.cx-band .btn-night {
+  margin-top: 24px;
+}
+
+/* ---------- 5. footer ---------- */
+.cx-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 32px;
+  padding: 26px var(--gutter);
+  background: var(--bg);
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.cx-foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+}
+.cx-foot a {
+  color: var(--ink-2);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 4px;
+}
+.cx-foot a:hover {
+  color: var(--teal-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cx-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- a narrower stage column wraps the handshake's lines, so it needs a little more room ---------- */
+@media (max-width: 1279px) {
+  .cx-stage {
+    min-height: 720px;
+  }
+}
+/* ---------- below a desk: one column ---------- */
+@media (max-width: 999px) {
+  .cx-hero {
+    min-height: 0;
+  }
+  .cx-hero-grid {
+    row-gap: 40px;
+    padding: 28px 0 56px;
+  }
+  .cx-pitch,
+  .cx-stage,
+  .cx-band-l,
+  .cx-band-r {
+    grid-column: 1 / -1;
+  }
+  .cx-stage {
+    justify-self: start;
+  }
+  .cx-hero::before {
+    -webkit-mask-image: radial-gradient(90% 46% at 50% 76%, rgba(0, 0, 0, 1), transparent 80%);
+    mask-image: radial-gradient(90% 46% at 50% 76%, rgba(0, 0, 0, 1), transparent 80%);
+  }
+  .cx-hero::after {
+    top: auto;
+    bottom: -6%;
+    right: -20%;
+    width: 140%;
+    transform: none;
+  }
+  .cx-rules {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .cx-rules p {
+    max-width: 44ch;
+  }
+  .cx-safety {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cx-safety .cx-more {
+    grid-area: auto;
+    margin-top: 32px;
+    padding: 0;
+  }
+  .cx-band {
+    row-gap: 22px;
+  }
+}
+@media (max-width: 640px) {
+  .cx-bar {
+    min-height: 64px;
+  }
+  .cx-stage {
+    min-height: 788px;
+  }
+  .cx-nav a:first-child {
+    display: none;
+  }
+  .cx-sub {
+    font-size: 16.5px;
+  }
+  .cx-cta .btn-night {
+    flex: 1 1 100%;
+  }
+  .cx-head-sub {
+    font-size: 16px;
+  }
+  .cx-block,
+  .cx-panel-h {
+    padding: 16px;
+  }
+  .cx-panel-h .badge {
+    display: none;
+  }
+  .cx-actions .btn-dark {
+    flex: 1 1 100%;
+  }
+  .cx-band .btn-night {
+    width: 100%;
+  }
+  .cx-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* wide screens: the headline and the stage both grow, so the night between them reads as a pause, not a gap */
+@media (min-width: 1700px) {
+  .cx-pitch {
+    grid-column: span 6;
+  }
+  .cx-stage {
+    grid-column: span 6;
+    zoom: 1.14;
+  }
+  .cx-pitch h1 {
+    font-size: clamp(84px, 5.3vw, 108px);
+  }
+  .cx-sub {
+    font-size: 20px;
+  }
+}
