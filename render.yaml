@@ -26,7 +26,10 @@ services:
       - key: DAILY_TURN_CAP
         value: "400"
       # Set these in the Render dashboard (never in this file)
+      # Claude: set ONE of these. CENCORI_API_KEY reaches Claude through the Cencori gateway.
       - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CENCORI_API_KEY
         sync: false
       - key: PAYPAL_CLIENT_ID
         sync: false

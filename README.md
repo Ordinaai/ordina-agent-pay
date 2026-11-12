@@ -34,7 +34,7 @@ Without Claude: `node node_modules/tsx/dist/cli.mjs scripts/mcp-probe.mts` acts 
 
 ## Safety is in the code, not the prompt
 
-An agent that can spend money needs rules it cannot talk its way around. All of these are enforced by the server, whatever a model says, and each has a test (40 tests in `test/`):
+An agent that can spend money needs rules it cannot talk its way around. All of these are enforced by the server, whatever a model says, and each has a test (46 tests in `test/`):
 
 | # | Rule | Where |
 |---|---|---|
@@ -67,7 +67,7 @@ The gateway owns the money; a **provider** owns a business's catalogue, calendar
 
 ## How the agents are built
 
-Two agents on the Claude API (`claude-opus-5-5`, low effort, server-side fallback on), each a small tool loop (`server/agents/loop.ts`):
+Two agents on Claude (`claude-opus-5-5`), each a small tool loop (`server/agents/loop.ts`). Claude is reached directly through the Claude API (low effort, server-side fallback on) or through the Cencori AI gateway; the conversation is kept in Claude's own message format either way.
 
 - **The customer's agent** (`buyer.ts`, used by the playground): `find_businesses`, `message_business`, `request_payment_approval`. Through MCP, the outside assistant plays this part.
 - **Each business's Secretary** (`secretary.ts`): `list_services`, `check_availability`, `hold_time`, `create_payment`, built from that business's details and the owner's notes.
@@ -93,7 +93,7 @@ With no keys it runs fully offline: scripted agents drive the same tools and Pay
 
 **No PayPal account needed.** Customers can pay by card through PayPal's own form (guest checkout) wherever PayPal offers it; PayPal decides which buttons to show from where the buyer is. In the Sandbox the buttons assume a US buyer (`PAYPAL_SANDBOX_BUYER_COUNTRY`, default `US`), so the card button can be tried from any country; live always uses the buyer's real location.
 
-**With Claude:** set `ANTHROPIC_API_KEY`. Agent turns are limited per IP per hour and per day (`TURNS_PER_IP_PER_HOUR`, `DAILY_TURN_CAP`), for the chat and MCP alike.
+**With Claude:** set `ANTHROPIC_API_KEY` for the Claude API, or `CENCORI_API_KEY` to reach the same Claude model through the [Cencori](https://cencori.com) AI gateway (if both are set, `AI_GATEWAY=cencori` picks Cencori). Agent turns are limited per IP per hour and per day (`TURNS_PER_IP_PER_HOUR`, `DAILY_TURN_CAP`), for the chat and MCP alike.
 
 Data is SQLite (Node's built-in `node:sqlite`, Node 24), in `./data` or `DATA_DIR`. Tests: `npm test`.
 

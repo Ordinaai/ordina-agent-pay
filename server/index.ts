@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterPayment, buyerTurn, BusyError } from "./agents/buyer.ts";
-import { aiMode, MODEL } from "./agents/loop.ts";
+import { aiGateway, aiMode, MODEL } from "./agents/loop.ts";
 import { bizApi } from "./business-api.ts";
 import { cancelDeadline, captureAndConfirm, customerCancel, offerByPayToken, session, setBudget } from "./commerce.ts";
 import { eventsFor, subscribe, type WireEvent } from "./events.ts";
@@ -32,6 +32,7 @@ app.get("/api/config", (_req, res) => {
   res.json({
     ai: aiMode(),
     model: aiMode() === "claude" ? MODEL : null,
+    aiGateway: aiGateway(),
     paypal: paypalMode(),
     paypalClientId: paypalMode() === "mock" ? null : paypalClientId(),
     paypalBuyerCountry: paypalSandboxBuyerCountry(),
@@ -278,5 +279,5 @@ if (setupProblem) console.error(`PayPal payments are OFF: ${setupProblem} Set it
 
 const port = Number(process.env.PORT ?? 8787);
 app.listen(port, () => {
-  console.log(`ordina-agent-pay on :${port} (ai=${aiMode()}, paypal=${paypalMode()})`);
+  console.log(`ordina-agent-pay on :${port} (ai=${aiGateway() ?? "mock"}, paypal=${paypalMode()})`);
 });
