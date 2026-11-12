@@ -208,8 +208,26 @@ export function offerByPayToken(token: string) {
 
 export type CaptureOutcome = { ok: true; booking: Booking } | { ok: false; reason: string };
 
+/**
+ * One capture per offer at a time. A double click on PayPal's button, or the
+ * pay page and the playground confirming together, would otherwise both pass
+ * the "already booked?" check before either saved, and the second would hit
+ * the unique order id and report a failure for a payment that went through.
+ * Calls for the same conversation and offer share the first one's outcome.
+ */
+const capturing = new Map<string, Promise<CaptureOutcome>>();
+
 /** Browser, after the human approved in PayPal: capture and confirm. */
-export async function captureAndConfirm(sessionId: string, orderId: string): Promise<CaptureOutcome> {
+export function captureAndConfirm(sessionId: string, orderId: string): Promise<CaptureOutcome> {
+  const key = `${sessionId}|${orderId}`;
+  const running = capturing.get(key);
+  if (running) return running;
+  const once = captureOnce(sessionId, orderId).finally(() => capturing.delete(key));
+  capturing.set(key, once);
+  return once;
+}
+
+async function captureOnce(sessionId: string, orderId: string): Promise<CaptureOutcome> {
   const s = session(sessionId);
   const existing = bookingByOrder(orderId);
   if (existing && existing.sessionId === sessionId) return { ok: true, booking: existing };

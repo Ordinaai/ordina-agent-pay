@@ -49,6 +49,17 @@ describe("standard flow", () => {
     expect(store.getBooking(booking.id)!.releaseStatus).toBe("released");
   });
 
+  it("two captures of one offer at the same moment make one booking, and both report it", async () => {
+    const s = sid();
+    await buyerTurn(s, "My name is Ada, wash and style please");
+    const offerId = pendingOffer(s);
+    paypal.mockApprove(offerId);
+    const [a, b] = await Promise.all([commerce.captureAndConfirm(s, offerId), commerce.captureAndConfirm(s, offerId)]);
+    expect(a.ok && b.ok).toBe(true);
+    if (a.ok && b.ok) expect(a.booking.id).toBe(b.booking.id);
+    expect(store.bookingsForSessions([s])).toHaveLength(1);
+  });
+
   it("still refuses a capture paid to a different seller (rule 4)", async () => {
     const s = sid();
     await buyerTurn(s, "My name is Ada, wash and style please");
